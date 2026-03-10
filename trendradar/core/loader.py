@@ -68,11 +68,20 @@ def _load_crawler_config(config_data: Dict) -> Dict:
     advanced = config_data.get("advanced", {})
     crawler_config = advanced.get("crawler", {})
     platforms_config = config_data.get("platforms", {})
+
+    # 过滤掉 enabled: false 的平台
+    sources = platforms_config.get("sources", [])
+    active_sources = [s for s in sources if s.get("enabled", True)]
+    if len(active_sources) < len(sources):
+        # 更新 config_data 中的 sources 以确保后续一致
+        platforms_config["sources"] = active_sources
+
     return {
         "REQUEST_INTERVAL": crawler_config.get("request_interval", 100),
         "USE_PROXY": crawler_config.get("use_proxy", False),
         "DEFAULT_PROXY": crawler_config.get("default_proxy", ""),
         "ENABLE_CRAWLER": platforms_config.get("enabled", True),
+        "FETCH_MODE": platforms_config.get("fetch_mode", "direct"),
     }
 
 
@@ -87,6 +96,7 @@ def _load_report_config(config_data: Dict) -> Dict:
     return {
         "REPORT_MODE": report_config.get("mode", "daily"),
         "DISPLAY_MODE": report_config.get("display_mode", "keyword"),
+        "HTML_STYLE": _get_env_str("HTML_STYLE") or report_config.get("html_style", "classic"),
         "RANK_THRESHOLD": report_config.get("rank_threshold", 10),
         "SORT_BY_POSITION_FIRST": sort_by_position_env if sort_by_position_env is not None else report_config.get("sort_by_position_first", False),
         "MAX_NEWS_PER_KEYWORD": max_news_env or report_config.get("max_news_per_keyword", 0),

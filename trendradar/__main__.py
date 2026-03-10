@@ -18,7 +18,7 @@ import requests
 from trendradar.context import AppContext
 from trendradar import __version__
 from trendradar.core import load_config
-from trendradar.core.analyzer import convert_keyword_stats_to_platform_stats
+from trendradar.core.analyzer import convert_keyword_stats_to_platform_stats, convert_rss_keyword_to_feed_stats
 from trendradar.crawler import DataFetcher
 from trendradar.storage import convert_crawl_results_to_news_data
 from trendradar.utils.time import DEFAULT_TIMEZONE, is_within_days, calculate_days_old
@@ -228,7 +228,11 @@ class NewsAnalyzer:
         self.update_info = None
         self.proxy_url = None
         self._setup_proxy()
-        self.data_fetcher = DataFetcher(self.proxy_url)
+        self.fetch_mode = self.ctx.config.get("FETCH_MODE", "direct")
+        self.data_fetcher = DataFetcher(
+            proxy_url=self.proxy_url,
+            default_fetch_mode=self.fetch_mode,
+        )
 
         # 初始化存储管理器（使用 AppContext）
         self._init_storage_manager()
@@ -1298,7 +1302,60 @@ class NewsAnalyzer:
                     quiet=True,
                 )
 
+        # 如果是 platform 模式，直接用原始 RSS 数据按 feed source 分组（不做关键词过滤）
+        if self.ctx.display_mode == "platform":
+            if raw_rss_items:
+                rss_stats = self._convert_raw_rss_to_feed_stats(raw_rss_items, new_items_list)
+            if new_items_list:
+                rss_new_stats = self._convert_raw_rss_to_feed_stats(new_items_list, new_items_list)
+        # keyword 模式保持原来的关键词匹配逻辑
+
         return rss_stats, rss_new_stats, raw_rss_items
+
+    def _convert_raw_rss_to_feed_stats(
+        self,
+        rss_items: List[Dict],
+        new_items: Optional[List[Dict]] = None,
+    ) -> List[Dict]:
+        """将原始 RSS 条目直接按 feed source 分组，不做关键词过滤。
+
+        用于 display_mode == 'platform' 时展示完整 RSS 内容。
+        """
+        from trendradar.utils.time import format_iso_time_friendly
+        timezone = self.ctx.config.get("TIMEZONE", "Asia/Shanghai")
+
+        new_urls = set()
+        if new_items:
+            for item in new_items:
+                new_urls.add(item.get("url", "") or item.get("title", ""))
+
+        feed_map: Dict[str, List[Dict]] = {}
+        for idx, item in enumerate(rss_items):
+            source_name = item.get("feed_name", "RSS")
+            if source_name not in feed_map:
+                feed_map[source_name] = []
+            is_new = (item.get("url", "") or item.get("title", "")) in new_urls
+            published_at = item.get("published_at", "")
+            time_display = format_iso_time_friendly(published_at, timezone, include_date=True) if published_at else ""
+            feed_map[source_name].append({
+                "title": item["title"],
+                "url": item.get("url", ""),
+                "source_name": source_name,
+                "ranks": [idx + 1],
+                "is_new": is_new,
+                "time_display": time_display,
+            })
+
+        feed_stats = []
+        for source_name, titles in feed_map.items():
+            feed_stats.append({
+                "word": source_name,
+                "count": len(titles),
+                "titles": titles,
+                "percentage": 0,
+            })
+        feed_stats.sort(key=lambda x: -x["count"])
+        return feed_stats
 
     def _convert_rss_items_to_list(self, items_dict: Dict, id_to_name: Dict) -> List[Dict]:
         """将 RSS 条目字典转换为列表格式，并应用新鲜度过滤（用于推送）"""

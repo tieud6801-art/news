@@ -707,6 +707,73 @@ def count_rss_frequency(
     return stats, total_items
 
 
+def convert_rss_keyword_to_feed_stats(
+    keyword_stats: List[Dict],
+) -> List[Dict]:
+    """
+    将按关键词分组的 RSS 统计数据转换为按 feed source（来源）分组
+
+    Args:
+        keyword_stats: 原始按关键词分组的 RSS 统计数据
+
+    Returns:
+        按 feed source 分组的统计数据，格式与原 stats 一致
+    """
+    if not keyword_stats:
+        return []
+
+    # 1. 收集所有条目，按 source_name 分组
+    feed_map: Dict[str, List[Dict]] = {}
+
+    for stat in keyword_stats:
+        keyword = stat["word"]
+        for title_data in stat["titles"]:
+            source_name = title_data.get("source_name", "RSS")
+
+            if source_name not in feed_map:
+                feed_map[source_name] = []
+
+            # 复制 title_data 并添加匹配的关键词
+            title_with_keyword = title_data.copy()
+            title_with_keyword["matched_keyword"] = keyword
+            feed_map[source_name].append(title_with_keyword)
+
+    # 2. 去重（同一来源下相同标题只保留一条）
+    for source_name, titles in feed_map.items():
+        seen_urls: Dict[str, bool] = {}
+        unique_titles = []
+        for title_data in titles:
+            url = title_data.get("url", "")
+            title_text = title_data["title"]
+            dedup_key = url if url else title_text
+            if dedup_key not in seen_urls:
+                seen_urls[dedup_key] = True
+                unique_titles.append(title_data)
+        feed_map[source_name] = unique_titles
+
+    # 3. 每个 feed 内按发布时间排序（ranks 越小越新）
+    for source_name, titles in feed_map.items():
+        feed_map[source_name] = sorted(
+            titles,
+            key=lambda x: x["ranks"][0] if x.get("ranks") else 999,
+        )
+
+    # 4. 构建统计结果
+    feed_stats = []
+    for source_name, titles in feed_map.items():
+        feed_stats.append({
+            "word": source_name,  # feed 名作为分组标识
+            "count": len(titles),
+            "titles": titles,
+            "percentage": 0,
+        })
+
+    # 5. 按条目数排序
+    feed_stats.sort(key=lambda x: -x["count"])
+
+    return feed_stats
+
+
 def convert_keyword_stats_to_platform_stats(
     keyword_stats: List[Dict],
     weight_config: Dict,

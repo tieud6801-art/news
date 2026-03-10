@@ -988,13 +988,13 @@ def render_html_content(
 
     # 生成 RSS 统计内容
     def render_rss_stats_html(stats: List[Dict], title: str = "RSS 订阅更新") -> str:
-        """渲染 RSS 统计区块 HTML
+        """渲染 RSS 统计区块 HTML（支持按关键词或按来源分组）
 
         Args:
             stats: RSS 分组统计列表，格式与热榜一致：
                 [
                     {
-                        "word": "关键词",
+                        "word": "关键词/来源名",
                         "count": 5,
                         "titles": [
                             {
@@ -1002,7 +1002,8 @@ def render_html_content(
                                 "source_name": "Feed 名称",
                                 "time_display": "12-29 08:20",
                                 "url": "...",
-                                "is_new": True/False
+                                "is_new": True/False,
+                                "matched_keyword": "关键词"  (platform 模式下存在)
                             }
                         ]
                     }
@@ -1027,20 +1028,20 @@ def render_html_content(
                         <div class="rss-section-count">{total_count} 条</div>
                     </div>"""
 
-        # 按关键词分组渲染（与热榜格式一致）
+        # 按分组渲染（关键词或来源）
         for stat in stats:
-            keyword = stat.get("word", "")
+            group_name = stat.get("word", "")
             titles = stat.get("titles", [])
             if not titles:
                 continue
 
-            keyword_count = len(titles)
+            group_count = len(titles)
 
             rss_html += f"""
                     <div class="feed-group">
                         <div class="feed-header">
-                            <div class="feed-name">{html_escape(keyword)}</div>
-                            <div class="feed-count">{keyword_count} 条</div>
+                            <div class="feed-name">{html_escape(group_name)}</div>
+                            <div class="feed-count">{group_count} 条</div>
                         </div>"""
 
             for title_data in titles:
@@ -1057,8 +1058,16 @@ def render_html_content(
                 if time_display:
                     rss_html += f'<span class="rss-time">{html_escape(time_display)}</span>'
 
-                if source_name:
-                    rss_html += f'<span class="rss-author">{html_escape(source_name)}</span>'
+                # 根据 display_mode 决定显示来源还是关键词
+                if display_mode == "keyword":
+                    # keyword 模式：分组是关键词，每条显示来源
+                    if source_name:
+                        rss_html += f'<span class="rss-author">{html_escape(source_name)}</span>'
+                else:
+                    # platform 模式：分组是来源，每条显示匹配的关键词
+                    matched_keyword = title_data.get("matched_keyword", "")
+                    if matched_keyword:
+                        rss_html += f'<span class="keyword-tag">[{html_escape(matched_keyword)}]</span>'
 
                 if is_new:
                     rss_html += '<span class="rss-author" style="color: #dc2626;">NEW</span>'

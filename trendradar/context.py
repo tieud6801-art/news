@@ -31,6 +31,7 @@ from trendradar.report import (
     generate_html_report,
     render_html_content,
 )
+from trendradar.report.html_newsnow import render_newsnow_html_content
 from trendradar.notification import (
     render_feishu_content,
     render_dingtalk_content,
@@ -120,6 +121,11 @@ class AppContext:
     def display_mode(self) -> str:
         """获取显示模式 (keyword | platform)"""
         return self.config.get("DISPLAY_MODE", "keyword")
+
+    @property
+    def html_style(self) -> str:
+        """获取 HTML 样式 (classic | newsnow)"""
+        return self.config.get("HTML_STYLE", "classic")
 
     @property
     def show_new_section(self) -> bool:
@@ -327,7 +333,8 @@ class AppContext:
         standalone_data: Optional[Dict] = None,
     ) -> str:
         """渲染HTML内容"""
-        return render_html_content(
+        render_func = render_newsnow_html_content if self.html_style == "newsnow" else render_html_content
+        return render_func(
             report_data=report_data,
             total_titles=total_titles,
             mode=mode,

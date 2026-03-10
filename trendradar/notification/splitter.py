@@ -697,7 +697,7 @@ def split_content_into_batches(
         return _process_rss_stats_section(
             rss_items, format_type, feishu_separator, base_header, base_footer,
             max_bytes, current_batch, current_batch_has_content, batches, timezone,
-            add_separator
+            add_separator, display_mode=display_mode
         )
 
     # 定义处理 RSS 新增的函数
@@ -836,12 +836,13 @@ def _process_rss_stats_section(
     batches: List[str],
     timezone: str = DEFAULT_TIMEZONE,
     add_separator: bool = True,
+    display_mode: str = "keyword",
 ) -> tuple:
-    """处理 RSS 统计区块（按关键词分组，与热榜统计格式一致）
+    """处理 RSS 统计区块（支持按关键词或按来源分组）
 
     Args:
-        rss_stats: RSS 关键词统计列表，格式与热榜 stats 一致：
-            [{"word": "AI", "count": 5, "titles": [...]}]
+        rss_stats: RSS 统计列表，格式与热榜 stats 一致：
+            [{"word": "关键词/来源名", "count": 5, "titles": [...]}]
         format_type: 格式类型
         feishu_separator: 飞书分隔符
         base_header: 基础头部
@@ -852,6 +853,7 @@ def _process_rss_stats_section(
         batches: 已完成的批次列表
         timezone: 时区名称
         add_separator: 是否在区块前添加分割线（第一个区域时为 False）
+        display_mode: 显示模式 (keyword=按关键词分组, platform=按来源分组)
 
     Returns:
         (current_batch, current_batch_has_content, batches) 元组
@@ -863,34 +865,37 @@ def _process_rss_stats_section(
     total_items = sum(stat["count"] for stat in rss_stats)
     total_keywords = len(rss_stats)
 
+    # 根据 display_mode 选择标题
+    rss_title = "RSS 订阅统计" if display_mode == "keyword" else "RSS 订阅更新"
+
     # RSS 统计区块标题（根据 add_separator 决定是否添加前置分割线）
     rss_header = ""
     if add_separator and current_batch_has_content:
         # 需要添加分割线
         if format_type == "feishu":
-            rss_header = f"\n{feishu_separator}\n\n📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"\n{feishu_separator}\n\n📰 **{rss_title}** (共 {total_items} 条)\n\n"
         elif format_type == "dingtalk":
-            rss_header = f"\n---\n\n📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"\n---\n\n📰 **{rss_title}** (共 {total_items} 条)\n\n"
         elif format_type in ("wework", "bark"):
-            rss_header = f"\n\n\n\n📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"\n\n\n\n📰 **{rss_title}** (共 {total_items} 条)\n\n"
         elif format_type == "telegram":
-            rss_header = f"\n\n📰 RSS 订阅统计 (共 {total_items} 条)\n\n"
+            rss_header = f"\n\n📰 {rss_title} (共 {total_items} 条)\n\n"
         elif format_type == "slack":
-            rss_header = f"\n\n📰 *RSS 订阅统计* (共 {total_items} 条)\n\n"
+            rss_header = f"\n\n📰 *{rss_title}* (共 {total_items} 条)\n\n"
         else:
-            rss_header = f"\n\n📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"\n\n📰 **{rss_title}** (共 {total_items} 条)\n\n"
     else:
         # 不需要分割线（第一个区域）
         if format_type == "feishu":
-            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"📰 **{rss_title}** (共 {total_items} 条)\n\n"
         elif format_type == "dingtalk":
-            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"📰 **{rss_title}** (共 {total_items} 条)\n\n"
         elif format_type == "telegram":
-            rss_header = f"📰 RSS 订阅统计 (共 {total_items} 条)\n\n"
+            rss_header = f"📰 {rss_title} (共 {total_items} 条)\n\n"
         elif format_type == "slack":
-            rss_header = f"📰 *RSS 订阅统计* (共 {total_items} 条)\n\n"
+            rss_header = f"📰 *{rss_title}* (共 {total_items} 条)\n\n"
         else:
-            rss_header = f"📰 **RSS 订阅统计** (共 {total_items} 条)\n\n"
+            rss_header = f"📰 **{rss_title}** (共 {total_items} 条)\n\n"
 
     # 添加 RSS 标题
     test_content = current_batch + rss_header
@@ -955,21 +960,25 @@ def _process_rss_stats_section(
                 word_header = f"📌 {sequence_display} *{word}* : {count} 条\n\n"
 
         # 构建第一条新闻（使用 format_title_for_platform）
+        # display_mode: keyword=显示来源, platform=显示关键词
+        rss_show_source = display_mode == "keyword"
+        rss_show_keyword = display_mode == "platform"
+
         first_news_line = ""
         if stat["titles"]:
             first_title_data = stat["titles"][0]
             if format_type in ("wework", "bark"):
-                formatted_title = format_title_for_platform("wework", first_title_data, show_source=True)
+                formatted_title = format_title_for_platform("wework", first_title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "telegram":
-                formatted_title = format_title_for_platform("telegram", first_title_data, show_source=True)
+                formatted_title = format_title_for_platform("telegram", first_title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "ntfy":
-                formatted_title = format_title_for_platform("ntfy", first_title_data, show_source=True)
+                formatted_title = format_title_for_platform("ntfy", first_title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "feishu":
-                formatted_title = format_title_for_platform("feishu", first_title_data, show_source=True)
+                formatted_title = format_title_for_platform("feishu", first_title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "dingtalk":
-                formatted_title = format_title_for_platform("dingtalk", first_title_data, show_source=True)
+                formatted_title = format_title_for_platform("dingtalk", first_title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "slack":
-                formatted_title = format_title_for_platform("slack", first_title_data, show_source=True)
+                formatted_title = format_title_for_platform("slack", first_title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             else:
                 formatted_title = f"{first_title_data['title']}"
 
@@ -996,17 +1005,17 @@ def _process_rss_stats_section(
         for j in range(start_index, len(stat["titles"])):
             title_data = stat["titles"][j]
             if format_type in ("wework", "bark"):
-                formatted_title = format_title_for_platform("wework", title_data, show_source=True)
+                formatted_title = format_title_for_platform("wework", title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "telegram":
-                formatted_title = format_title_for_platform("telegram", title_data, show_source=True)
+                formatted_title = format_title_for_platform("telegram", title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "ntfy":
-                formatted_title = format_title_for_platform("ntfy", title_data, show_source=True)
+                formatted_title = format_title_for_platform("ntfy", title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "feishu":
-                formatted_title = format_title_for_platform("feishu", title_data, show_source=True)
+                formatted_title = format_title_for_platform("feishu", title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "dingtalk":
-                formatted_title = format_title_for_platform("dingtalk", title_data, show_source=True)
+                formatted_title = format_title_for_platform("dingtalk", title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             elif format_type == "slack":
-                formatted_title = format_title_for_platform("slack", title_data, show_source=True)
+                formatted_title = format_title_for_platform("slack", title_data, show_source=rss_show_source, show_keyword=rss_show_keyword)
             else:
                 formatted_title = f"{title_data['title']}"
 
