@@ -476,6 +476,9 @@ class AppContext:
         if self._scheduler is None:
             schedule_config = self.config.get("SCHEDULE", {})
             timeline_data = self.config.get("_TIMELINE_DATA", {})
+            # 把 config.yaml 中的 report.mode 传给调度器，作为禁用调度时的默认模式
+            schedule_config = dict(schedule_config)
+            schedule_config["default_report_mode"] = self.config.get("REPORT_MODE", "current")
 
             self._scheduler = Scheduler(
                 schedule_config=schedule_config,

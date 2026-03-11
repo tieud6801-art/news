@@ -62,6 +62,8 @@ class Scheduler:
         self.storage = storage_backend
         self.get_time = get_time_func
         self.enabled = schedule_config.get("enabled", True)
+        # 调度未启用时的默认报告模式（从外部传入，避免硬编码）
+        self.default_report_mode = schedule_config.get("default_report_mode", "current")
 
         # 加载并构建最终 timeline
         self.timeline = self._build_timeline(schedule_config, timeline_data)
@@ -101,7 +103,7 @@ class Scheduler:
             ResolvedSchedule 包含当前应执行的行为
         """
         if not self.enabled:
-            # 调度未启用时返回默认的全功能配置
+            # 调度未启用时返回默认的全功能配置，report_mode 使用 config.yaml 的设置
             return ResolvedSchedule(
                 period_key=None,
                 period_name=None,
@@ -109,7 +111,7 @@ class Scheduler:
                 collect=True,
                 analyze=True,
                 push=True,
-                report_mode="current",
+                report_mode=self.default_report_mode,
                 ai_mode="follow_report",
                 once_analyze=False,
                 once_push=False,

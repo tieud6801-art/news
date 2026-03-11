@@ -108,15 +108,18 @@ def prepare_report_data(
         processed_titles = []
         for title_data in stat["titles"]:
             processed_title = {
-                "title": title_data["title"],
-                "source_name": title_data["source_name"],
-                "time_display": title_data["time_display"],
-                "count": title_data["count"],
-                "ranks": title_data["ranks"],
-                "rank_threshold": title_data["rank_threshold"],
+                "title": title_data.get("title", ""),
+                "source_name": title_data.get("source_name", ""),
+                "time_display": title_data.get("time_display", ""),
+                "count": title_data.get("count", 1),
+                "ranks": title_data.get("ranks", []),
+                "rank_threshold": title_data.get("rank_threshold", rank_threshold),
                 "url": title_data.get("url", ""),
-                "mobile_url": title_data.get("mobileUrl", ""),
+                # 兼容驼峰（原始爬取数据）和下划线（已处理过的数据）两种命名
+                "mobile_url": title_data.get("mobile_url") or title_data.get("mobileUrl", ""),
                 "is_new": title_data.get("is_new", False),
+                # platform 模式下需要透传关键词标签
+                "matched_keyword": title_data.get("matched_keyword", ""),
             }
             processed_titles.append(processed_title)
 
