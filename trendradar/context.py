@@ -133,6 +133,11 @@ class AppContext:
         return self.config.get("DISPLAY", {}).get("REGIONS", {}).get("NEW_ITEMS", True)
 
     @property
+    def show_rss_new_items(self) -> bool:
+        """是否显示 RSS 本次新增区域"""
+        return self.config.get("DISPLAY", {}).get("REGIONS", {}).get("RSS_NEW_ITEMS", True)
+
+    @property
     def region_order(self) -> List[str]:
         """获取区域显示顺序"""
         default_order = ["hotlist", "rss", "new_items", "standalone", "ai_analysis"]
@@ -346,6 +351,7 @@ class AppContext:
             display_mode=self.display_mode,
             ai_analysis=ai_analysis,
             show_new_section=self.show_new_section,
+            show_rss_new_items=self.show_rss_new_items,
             standalone_data=standalone_data,
         )
 
@@ -440,6 +446,7 @@ class AppContext:
             ai_stats=ai_stats,
             report_type=report_type,
             show_new_section=self.show_new_section,
+            show_rss_new_items=self.show_rss_new_items,
         )
 
     # === 通知发送 ===

@@ -701,10 +701,8 @@ class NewsAnalyzer:
                 if title_info and platform_id in title_info and title in title_info[platform_id]:
                     meta = title_info[platform_id][title]
 
-                # 只保留当前在榜的话题（last_time 等于最新时间）
-                if latest_time and meta:
-                    if meta.get("last_time") != latest_time:
-                        continue
+                # 注意：不过滤已下榜的内容，展示当天抓取到的全部数据
+                # 这样独立展示区（实时新闻）可以看到完整的新闻流
 
                 # 使用当前热榜的排名数据（title_data）进行排序
                 # title_data 包含的是爬虫返回的当前排名，用于保证独立展示区的顺序与热榜一致
@@ -733,8 +731,8 @@ class NewsAnalyzer:
                 }
                 items.append(item)
 
-            # 按当前排名排序
-            items.sort(key=lambda x: x["rank"] if x["rank"] > 0 else 9999)
+            # 按首次出现时间倒序（最新的在前）
+            items.sort(key=lambda x: x.get("first_time", ""), reverse=True)
 
             # 限制条数
             if max_items > 0:

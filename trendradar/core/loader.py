@@ -255,6 +255,7 @@ def _load_display_config(config_data: Dict) -> Dict:
         "REGIONS": {
             "HOTLIST": regions.get("hotlist", True),
             "NEW_ITEMS": regions.get("new_items", True),
+            "RSS_NEW_ITEMS": regions.get("rss_new_items", True),
             "RSS": regions.get("rss", True),
             "STANDALONE": regions.get("standalone", False),
             "AI_ANALYSIS": regions.get("ai_analysis", True),

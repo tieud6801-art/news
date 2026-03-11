@@ -35,8 +35,15 @@ case "${RUN_MODE:-cron}" in
 
     # 启动 Web 服务器（如果配置了）
     if [ "${ENABLE_WEBSERVER:-false}" = "true" ]; then
-        echo "🌐 启动 Web 服务器..."
-        /usr/local/bin/python manage.py start_webserver
+        echo "🌐 启动 Web 服务器（后台运行，端口 ${WEBSERVER_PORT:-8080}）..."
+        /usr/local/bin/python manage.py start_webserver &
+        WEBSERVER_PID=$!
+        sleep 2
+        if kill -0 $WEBSERVER_PID 2>/dev/null; then
+            echo "✅ Web 服务器已启动 (PID: $WEBSERVER_PID)"
+        else
+            echo "⚠️ Web 服务器启动失败，继续运行 cron 任务"
+        fi
     fi
 
     echo "⏰ 启动supercronic: ${CRON_SCHEDULE:-*/30 * * * *}"

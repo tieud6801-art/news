@@ -45,6 +45,7 @@ def split_content_into_batches(
     ai_stats: Optional[Dict] = None,
     report_type: str = "热点分析报告",
     show_new_section: bool = True,
+    show_rss_new_items: bool = True,
 ) -> List[str]:
     """分批处理消息内容，确保词组标题+至少第一条新闻的完整性（支持热榜+RSS合并+AI分析+独立展示区）
 
@@ -703,7 +704,7 @@ def split_content_into_batches(
     # 定义处理 RSS 新增的函数
     def process_rss_new_wrapper(current_batch, current_batch_has_content, batches, add_separator=True):
         """处理 RSS 新增"""
-        if not rss_new_items:
+        if not rss_new_items or not show_rss_new_items:
             return current_batch, current_batch_has_content, batches
         return _process_rss_new_titles_section(
             rss_new_items, format_type, feishu_separator, base_header, base_footer,

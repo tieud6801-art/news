@@ -245,6 +245,7 @@ def render_newsnow_html_content(
     standalone_data: Optional[Dict] = None,
     ai_analysis: Optional[Any] = None,
     show_new_section: bool = True,
+    show_rss_new_items: bool = True,
 ) -> str:
     """渲染 NewsNow 风格的暗色卡片 HTML 报告。"""
     default_region_order = ["hotlist", "rss", "new_items", "standalone", "ai_analysis"]
@@ -279,7 +280,7 @@ def render_newsnow_html_content(
     if rss_items:
         rss_title = "RSS 订阅统计" if display_mode == "keyword" else "RSS 订阅更新"
         rss_section += _render_rss(rss_items, rss_title, display_mode)
-    if rss_new_items:
+    if rss_new_items and show_rss_new_items:
         rss_section += _render_rss(rss_new_items, "RSS 新增更新", display_mode)
     sections["rss"] = rss_section
 
@@ -291,10 +292,40 @@ def render_newsnow_html_content(
     if standalone_data:
         standalone_stats = standalone_data.get("platforms", [])
         if standalone_stats:
+            # standalone 数据格式: [{id, name, items}]
+            # _cards_grid 期望格式: [{word, count, titles}]
+            def _fmt_time(t: str) -> str:
+                """HH-MM → HH:MM"""
+                return t.replace("-", ":") if t else ""
+
+            def _time_display(item: Dict) -> str:
+                ft = _fmt_time(item.get("first_time", ""))
+                return ft or _fmt_time(item.get("last_time", ""))
+
+            converted_stats = [
+                {
+                    "word": p.get("name", p.get("id", "未命名")),
+                    "count": len(p.get("items", [])),
+                    "titles": [
+                        {
+                            "title": item.get("title", ""),
+                            "url": item.get("url", ""),
+                            "mobileUrl": item.get("mobileUrl", ""),
+                            # 独立展示区不显示排名和出现次数，只展示纯新闻流
+                            "ranks": [],
+                            "count": 1,
+                            "time_display": _time_display(item),
+                            "is_new": False,
+                        }
+                        for item in p.get("items", [])
+                    ],
+                }
+                for p in standalone_stats
+            ]
             sections["standalone"] = (
                 f'<section class="panel-block">'
                 f'<h2 class="panel-title">📌 独立展示区</h2>'
-                f'{_cards_grid(standalone_stats, "keyword")}'
+                f'{_cards_grid(converted_stats, "keyword")}'
                 f'</section>'
             )
         else:

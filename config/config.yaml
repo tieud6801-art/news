@@ -153,6 +153,7 @@ rss:
     - id: "hacker-news"
       name: "Hacker News"
       url: "https://hnrss.org/frontpage"
+      enabled: false
       # max_age_days: 1               # 示例：只推送1天内的文章
 
     - id: "ruanyifeng"
@@ -163,7 +164,6 @@ rss:
     - id: "yahoo-finance"
       name: "雅虎财经"
       url: "https://finance.yahoo.com/news/rssindex"
-      enabled: false                  # 禁用
 
     # === 从 NewsNow 迁移的 RSS 源 ===
     # -- 直接 RSS --
@@ -204,6 +204,7 @@ rss:
     - id: "solidot"
       name: "Solidot"
       url: "https://rsshub.rssforever.com/solidot/www"
+      enabled: false
 
     - id: "36kr"
       name: "36氪快讯"
@@ -220,6 +221,98 @@ rss:
     - id: "tonghuashun"
       name: "同花顺资讯"
       url: "https://rsshub.rssforever.com/10jqka/realtimenews"
+
+    # === 国际主流新闻媒体 ===
+    # -- 综合新闻 --
+    - id: "reuters-buzzing"
+      name: "路透社"
+      url: "https://reuters.buzzing.cc/feed.xml"
+
+    - id: "news-buzzing"
+      name: "世界新闻精选"
+      url: "https://news.buzzing.cc/feed.xml"
+
+    - id: "bloombergnew-buzzing"
+      name: "彭博社"
+      url: "https://bloombergnew.buzzing.cc/feed.xml"
+    
+    - id: "economistnew-buzzing"
+      name: "经济学人"
+      url: "https://economistnew.buzzing.cc/feed.xml"
+    
+    - id: "ft-buzzing"
+      name: "金融时报"
+      url: "https://ft.buzzing.cc/feed.xml"
+    
+    - id: "bbc-buzzing"
+      name: "BBC 热点"
+      url: "https://bbc.buzzing.cc/feed.xml"
+
+    - id: "theguardian-buzzing"
+      name: "卫报热点"
+      url: "https://theguardian.buzzing.cc/feed.xml"
+
+    - id: "finance-buzzing"
+      name: "财经新闻"
+      url: "https://finance.buzzing.cc/feed.xml"
+    
+    - id: "stocks-buzzing"
+      name: "股市讨论"
+      url: "https://stocks.buzzing.cc/feed.xml"
+    
+    - id: "tech-buzzing"
+      name: "科技动态"
+      url: "https://tech.buzzing.cc/feed.xml"
+
+    - id: "wsj-buzzing"
+      name: "华尔街日报"
+      url: "https://wsj.buzzing.cc/feed.xml"
+
+    - id: "wsj-world"
+      name: "华尔街日报(国际)"
+      url: "https://feeds.a.dj.com/rss/RSSWorldNews.xml"
+
+    - id: "wsj-markets"
+      name: "华尔街日报(市场)"
+      url: "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+
+    - id: "ap-world"
+      name: "美联社(国际)"
+      url: "https://rsshub.rssforever.com/apnews/topics/world-news"
+
+    - id: "ap-business"
+      name: "美联社(财经)"
+      url: "https://rsshub.rssforever.com/apnews/topics/business"
+
+    - id: "bbc-world"
+      name: "BBC 国际"
+      url: "https://feeds.bbci.co.uk/news/world/rss.xml"
+
+    - id: "bbc-business"
+      name: "BBC 财经"
+      url: "https://feeds.bbci.co.uk/news/business/rss.xml"
+
+    - id: "bbc-tech"
+      name: "BBC 科技"
+      url: "https://feeds.bbci.co.uk/news/technology/rss.xml"
+
+    - id: "bbc-zhongwen"
+      name: "BBC 中文"
+      url: "http://feeds.bbci.co.uk/zhongwen/simp/rss.xml"
+
+    - id: "aljazeera"
+      name: "半岛电视台"
+      url: "https://www.aljazeera.com/xml/rss/all.xml"
+
+    # -- 财经/科技 --
+    - id: "ft-world"
+      name: "金融时报(国际)"
+      url: "https://www.ft.com/world?format=rss"
+
+    - id: "bloomberg-tech"
+      name: "彭博(科技)"
+      url: "https://feeds.bloomberg.com/technology/news.rss"
+
 
     # 自定义源示例
     # - id: "custom-feed"
@@ -296,26 +389,49 @@ display:
   # 控制各区域是否启用（配合 region_order 使用）
   regions:
     hotlist: true                     # 热榜区域（关键词匹配的热点新闻）
-    new_items: false                   # 新增热点区域（含热榜新增 + RSS 新增）
+    new_items: false                  # 新增热点区域（含热榜新增）
                                       # 注：热点词汇统计中的新增标记🆕不受此配置影响
+    rss_new_items: false              # RSS 本次新增区域（单独控制，不影响热榜新增）
 
     rss: true                         # RSS 订阅区域
                                       # 开启后将对 RSS 进行关键词分析并在通知中展示
                                       # 关闭后跳过分析，但独立展示区不受影响
 
-    standalone: false                 # 独立展示区（完整热榜/RSS，不受关键词过滤）
+    standalone: true                  # 独立展示区 / 实时新闻（完整热榜/RSS，不受关键词过滤）
     ai_analysis: true                 # AI 分析区域
 
-  # 📋 独立展示区配置
+  # 📋 独立展示区配置（实时新闻）
   # 用途：将指定平台的完整热榜/RSS 数据独立提取，不受关键词过滤影响
   # 两个独立用途：
-  #   - 推送展示：由 regions.standalone 开关控制，在推送中单独展示完整热榜
+  #   - 推送展示：由 regions.standalone 开关控制，在推送中单独展示完整新闻
   #   - AI 分析：由 ai.include_standalone 开关控制，将完整数据送入 AI 做深度分析
   # 两者共享此处的平台/RSS 配置，但开关互相独立（可只开 AI 分析、不推送展示）
+  #
+  # 📰 平台分类参考（排行榜 vs 实时新闻）：
+  #   🏆 排行榜类（按热度排序，适合留在 hotlist 做关键词匹配）：
+  #      toutiao, baidu, weibo, douyin, zhihu, bilibili-hot-search,
+  #      tencent-hot, wallstreetcn-hot, thepaper, cls-hot, ifeng,
+  #      juejin, xueqiu-hotstock
+  #   📰 实时新闻类（按时间排序，适合放入此处展示全部内容）：
+  #      ithome, eastmoney, gelonghui, wallstreetcn-quick,
+  #      wallstreetcn-news, cls-depth, xueqiu-news, xinhua,
+  #      cankaoxiaoxi, kaopu, zaobao, sputniknewscn
   standalone:
-    platforms: []                     # 热榜平台 ID 列表（如 ["zhihu", "weibo"]）
+    platforms:                        # 📰 实时新闻类平台（按时间流展示，不受关键词过滤）
+      - "ithome"                      # IT之家 - 新闻列表
+      - "eastmoney"                   # 东方财富 - 7×24快讯
+      - "gelonghui"                   # 格隆汇 - 新闻流
+      - "wallstreetcn-quick"          # 华尔街见闻快讯
+      - "wallstreetcn-news"           # 华尔街见闻资讯
+      - "cls-depth"                   # 财联社深度
+      - "xueqiu-news"                # 雪球快讯
+      - "xinhua"                      # 新华网
+      - "cankaoxiaoxi"               # 参考消息
+      - "kaopu"                       # 靠谱新闻
+      - "zaobao"                      # 联合早报
+      - "sputniknewscn"              # 卫星通讯社
     rss_feeds: []                     # RSS 源 ID 列表（如 ["hacker-news"]）
-    max_items: 20                     # 每个源最多展示条数（0=不限制）
+    max_items: 0                      # 每个源最多展示条数（0=不限制）
 
 
 # ===============================================================
