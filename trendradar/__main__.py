@@ -1206,11 +1206,17 @@ class NewsAnalyzer:
         raw_rss_items = None  # 原始 RSS 条目列表（用于独立展示区）
 
         # 1. 首先获取原始条目（用于独立展示区，不受 display.regions.rss 影响）
+        new_items_dict = self.storage_manager.detect_new_rss_items(rss_data)
+        new_items_list = None
+        if new_items_dict:
+            new_items_list = self._convert_rss_items_to_list(new_items_dict, rss_data.id_to_name)
+            if new_items_list:
+                print(f"[RSS] 检测到 {len(new_items_list)} 条新增")
+
         # 根据模式获取原始条目
         if self.report_mode == "incremental":
-            new_items_dict = self.storage_manager.detect_new_rss_items(rss_data)
             if new_items_dict:
-                raw_rss_items = self._convert_rss_items_to_list(new_items_dict, rss_data.id_to_name)
+                raw_rss_items = new_items_list
         elif self.report_mode == "current":
             latest_data = self.storage_manager.get_latest_rss_data(rss_data.date)
             if latest_data:
@@ -1224,15 +1230,15 @@ class NewsAnalyzer:
         if not rss_display_enabled:
             return None, None, raw_rss_items
 
-        # 2. 获取新增条目（用于统计）
-        new_items_dict = self.storage_manager.detect_new_rss_items(rss_data)
-        new_items_list = None
-        if new_items_dict:
-            new_items_list = self._convert_rss_items_to_list(new_items_dict, rss_data.id_to_name)
+        # Platform 模式展示的是来源流，不能先被关键词统计过滤掉。
+        if self.ctx.display_mode == "platform":
+            if raw_rss_items:
+                rss_stats = self._convert_raw_rss_to_feed_stats(raw_rss_items, new_items_list)
             if new_items_list:
-                print(f"[RSS] 检测到 {len(new_items_list)} 条新增")
+                rss_new_stats = self._convert_raw_rss_to_feed_stats(new_items_list, new_items_list)
+            return rss_stats, rss_new_stats, raw_rss_items
 
-        # 3. 根据模式获取统计条目
+        # 2. 根据模式获取统计条目
         if self.report_mode == "incremental":
             # 增量模式：统计条目就是新增条目
             if not new_items_list:
@@ -1333,14 +1339,6 @@ class NewsAnalyzer:
                     rank_threshold=self.rank_threshold,
                     quiet=True,
                 )
-
-        # 如果是 platform 模式，直接用原始 RSS 数据按 feed source 分组（不做关键词过滤）
-        if self.ctx.display_mode == "platform":
-            if raw_rss_items:
-                rss_stats = self._convert_raw_rss_to_feed_stats(raw_rss_items, new_items_list)
-            if new_items_list:
-                rss_new_stats = self._convert_raw_rss_to_feed_stats(new_items_list, new_items_list)
-        # keyword 模式保持原来的关键词匹配逻辑
 
         return rss_stats, rss_new_stats, raw_rss_items
 

@@ -302,38 +302,66 @@ def render_newsnow_html_content(
     sections["new_items"] = new_titles_html
 
     if standalone_data:
-        standalone_stats = standalone_data.get("platforms", [])
-        if standalone_stats:
+        standalone_platforms = standalone_data.get("platforms", [])
+        standalone_rss_feeds = standalone_data.get("rss_feeds", [])
+        if standalone_platforms or standalone_rss_feeds:
             # standalone 数据格式: [{id, name, items}]
             # _cards_grid 期望格式: [{word, count, titles}]
             def _fmt_time(t: str) -> str:
-                """HH-MM → HH:MM"""
+                """HH-MM -> HH:MM"""
                 return t.replace("-", ":") if t else ""
 
             def _time_display(item: Dict) -> str:
                 ft = _fmt_time(item.get("first_time", ""))
                 return ft or _fmt_time(item.get("last_time", ""))
 
-            converted_stats = [
-                {
-                    "word": p.get("name", p.get("id", "未命名")),
-                    "count": p.get("total_count", len(p.get("items", []))),
+            def _rss_time_display(item: Dict) -> str:
+                published_at = item.get("published_at", "")
+                if not published_at:
+                    return ""
+                try:
+                    return datetime.fromisoformat(
+                        published_at.replace("Z", "+00:00")
+                    ).strftime("%m-%d %H:%M")
+                except ValueError:
+                    return published_at
+
+            converted_stats = []
+            for platform in standalone_platforms:
+                converted_stats.append({
+                    "word": platform.get("name", platform.get("id", "未命名")),
+                    "count": platform.get("total_count", len(platform.get("items", []))),
                     "titles": [
                         {
                             "title": item.get("title", ""),
                             "url": item.get("url", ""),
-                            "mobileUrl": item.get("mobileUrl", ""),
+                            "mobile_url": item.get("mobileUrl", "") or item.get("mobile_url", ""),
                             # 独立展示区不显示排名和出现次数，只展示纯新闻流
                             "ranks": [],
                             "count": 1,
                             "time_display": _time_display(item),
                             "is_new": False,
                         }
-                        for item in p.get("items", [])
+                        for item in platform.get("items", [])
                     ],
-                }
-                for p in standalone_stats
-            ]
+                })
+            for feed in standalone_rss_feeds:
+                converted_stats.append({
+                    "word": feed.get("name", feed.get("id", "RSS")),
+                    "count": feed.get("total_count", len(feed.get("items", []))),
+                    "titles": [
+                        {
+                            "title": item.get("title", ""),
+                            "url": item.get("url", ""),
+                            "source_name": item.get("author", ""),
+                            "ranks": [],
+                            "count": 1,
+                            "time_display": _rss_time_display(item),
+                            "is_new": False,
+                        }
+                        for item in feed.get("items", [])
+                    ],
+                })
             sections["standalone"] = (
                 f'<section class="panel-block">'
                 f'<h2 class="panel-title">📌 独立展示区</h2>'
