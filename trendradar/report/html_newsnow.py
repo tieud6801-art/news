@@ -140,14 +140,23 @@ def _regroup_by_source(stats: List[Dict]) -> List[Dict]:
     return result
 
 
-def _card(label: str, count: int, idx: int, total: int,
-          items_html: str, color: str) -> str:
+def _card(
+    label: str,
+    count: int,
+    idx: int,
+    total: int,
+    items_html: str,
+    color: str,
+    displayed_count: Optional[int] = None,
+) -> str:
     shell_bg = _to_rgba(color, 0.40)
     sprinkle = (
         f"radial-gradient(ellipse 80% 80% at 50% -30%, "
         f"{_to_rgba(color, 0.30)}, rgba(255,255,255,0))"
     )
-    sub_text = f"{idx}/{total}" if total > 0 else ""
+    displayed_count = count if displayed_count is None else displayed_count
+    sub_text = f"显示 {displayed_count} 条" if 0 <= displayed_count < count else ""
+    sub_html = f'<span class="card-sub">{sub_text}</span>' if sub_text else ""
     delay = (idx - 1) * 0.08 if idx > 0 else 0
     return (
         f'<section class="card-shell" '
@@ -156,9 +165,9 @@ def _card(label: str, count: int, idx: int, total: int,
         f'<div class="card-head-left">'
         f'<span class="card-name-wrap">'
         f'<span class="card-name">{html_escape(label)}</span>'
-        f'<span class="card-sub">{sub_text}</span>'
+        f'{sub_html}'
         f'</span></div>'
-        f'<span class="card-count">{count} 条</span>'
+        f'<span class="card-count">共 {count} 条</span>'
         f'</div>'
         f'<div class="card-inner" style="background-image:{sprinkle}">'
         f'<ol class="card-list">{items_html}</ol>'
@@ -173,13 +182,15 @@ def _cards_grid(stats: List[Dict], display_mode: str) -> str:
     cards = []
     for idx, stat in enumerate(stats, 1):
         label = stat.get("word", "未命名")
-        count = stat.get("count", 0)
+        titles = stat.get("titles", [])
+        count = stat.get("total_count", stat.get("count", len(titles)))
+        displayed_count = len(titles)
         color = _get_platform_color(label)
         items_html = "".join(
             _news_row(td, i, display_mode)
-            for i, td in enumerate(stat.get("titles", []), 1)
+            for i, td in enumerate(titles, 1)
         )
-        cards.append(_card(label, count, idx, total, items_html, color))
+        cards.append(_card(label, count, idx, total, items_html, color, displayed_count))
     return f'<div class="cards-grid">{"".join(cards)}</div>'
 
 
@@ -198,7 +209,7 @@ def _render_new_section(new_titles: List[Dict]) -> str:
             f'</a>'
             for i, td in enumerate(titles, 1)
         )
-        source_cards.append(_card(sn, len(titles), idx, len(new_titles), items, color))
+        source_cards.append(_card(sn, len(titles), idx, len(new_titles), items, color, len(titles)))
     return (
         '<section class="panel-block">'
         '<h2 class="panel-title">🆕 本次新增热点</h2>'
@@ -214,12 +225,13 @@ def _render_rss(rss_stats: List[Dict], title: str, display_mode: str) -> str:
     total = len(rss_stats)
     for idx, group in enumerate(rss_stats, 1):
         label = group.get("word", "RSS")
-        count = group.get("count", 0)
+        titles = group.get("titles", [])
+        count = group.get("total_count", group.get("count", len(titles)))
         items_html = "".join(
             _news_row(td, i, display_mode)
-            for i, td in enumerate(group.get("titles", []), 1)
+            for i, td in enumerate(titles, 1)
         )
-        cards.append(_card(label, count, idx, total, items_html, "#10b981"))
+        cards.append(_card(label, count, idx, total, items_html, "#10b981", len(titles)))
     return (
         '<section class="panel-block">'
         f'<h2 class="panel-title">📰 {html_escape(title)}</h2>'
@@ -305,7 +317,7 @@ def render_newsnow_html_content(
             converted_stats = [
                 {
                     "word": p.get("name", p.get("id", "未命名")),
-                    "count": len(p.get("items", [])),
+                    "count": p.get("total_count", len(p.get("items", []))),
                     "titles": [
                         {
                             "title": item.get("title", ""),

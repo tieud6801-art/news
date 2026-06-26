@@ -735,6 +735,7 @@ class NewsAnalyzer:
 
             # 按首次出现时间倒序（最新的在前）
             items.sort(key=lambda x: x.get("first_time", ""), reverse=True)
+            total_count = len(items)
 
             # 限制条数
             if max_items > 0:
@@ -744,6 +745,7 @@ class NewsAnalyzer:
                 standalone_data["platforms"].append({
                     "id": platform_id,
                     "name": platform_name,
+                    "total_count": total_count,
                     "items": items,
                 })
 
@@ -771,12 +773,14 @@ class NewsAnalyzer:
                 if feed_id in feed_items_map:
                     feed_data = feed_items_map[feed_id]
                     items = feed_data["items"]
+                    total_count = len(items)
                     if max_items > 0:
                         items = items[:max_items]
                     if items:
                         standalone_data["rss_feeds"].append({
                             "id": feed_id,
                             "name": feed_data["name"],
+                            "total_count": total_count,
                             "items": items,
                         })
 

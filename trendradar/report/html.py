@@ -1148,8 +1148,8 @@ def render_html_content(
             return ""
 
         # 计算总条目数
-        total_platform_items = sum(len(p.get("items", [])) for p in platforms)
-        total_rss_items = sum(len(f.get("items", [])) for f in rss_feeds)
+        total_platform_items = sum(p.get("total_count", len(p.get("items", []))) for p in platforms)
+        total_rss_items = sum(f.get("total_count", len(f.get("items", []))) for f in rss_feeds)
         total_count = total_platform_items + total_rss_items
 
         if total_count == 0:
@@ -1166,6 +1166,10 @@ def render_html_content(
         for platform in platforms:
             platform_name = platform.get("name", platform.get("id", ""))
             items = platform.get("items", [])
+            total_items = platform.get("total_count", len(items))
+            count_label = f"共 {total_items} 条"
+            if len(items) < total_items:
+                count_label += f" · 显示 {len(items)} 条"
             if not items:
                 continue
 
@@ -1173,7 +1177,7 @@ def render_html_content(
                     <div class="standalone-group">
                         <div class="standalone-header">
                             <div class="standalone-name">{html_escape(platform_name)}</div>
-                            <div class="standalone-count">{len(items)} 条</div>
+                            <div class="standalone-count">{count_label}</div>
                         </div>"""
 
             # 渲染每个条目（复用 news-item 结构）
@@ -1257,6 +1261,10 @@ def render_html_content(
         for feed in rss_feeds:
             feed_name = feed.get("name", feed.get("id", ""))
             items = feed.get("items", [])
+            total_items = feed.get("total_count", len(items))
+            count_label = f"共 {total_items} 条"
+            if len(items) < total_items:
+                count_label += f" · 显示 {len(items)} 条"
             if not items:
                 continue
 
@@ -1264,7 +1272,7 @@ def render_html_content(
                     <div class="standalone-group">
                         <div class="standalone-header">
                             <div class="standalone-name">{html_escape(feed_name)}</div>
-                            <div class="standalone-count">{len(items)} 条</div>
+                            <div class="standalone-count">{count_label}</div>
                         </div>"""
 
             for j, item in enumerate(items, 1):
