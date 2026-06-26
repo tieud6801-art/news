@@ -20,8 +20,10 @@ from trendradar import __version__
 from trendradar.core import load_config
 from trendradar.core.analyzer import convert_keyword_stats_to_platform_stats, convert_rss_keyword_to_feed_stats
 from trendradar.crawler import DataFetcher
+from trendradar.crawler.sources.base import SourceCrawlContext
 from trendradar.storage import convert_crawl_results_to_news_data
 from trendradar.utils.time import DEFAULT_TIMEZONE, is_within_days, calculate_days_old
+from trendradar.utils.url import normalize_url
 from trendradar.ai import AIAnalyzer, AIAnalysisResult
 from trendradar.core.scheduler import ResolvedSchedule
 
@@ -1014,13 +1016,14 @@ class NewsAnalyzer:
         print(f"开始爬取数据，请求间隔 {self.request_interval} 毫秒")
         Path("output").mkdir(parents=True, exist_ok=True)
 
+        crawl_date = self.ctx.format_date()
+        crawl_contexts = self._build_source_crawl_contexts(crawl_date)
         results, id_to_name, failed_ids = self.data_fetcher.crawl_websites(
-            ids, self.request_interval
+            ids, self.request_interval, crawl_contexts=crawl_contexts
         )
 
         # 转换为 NewsData 格式并保存到存储后端
         crawl_time = self.ctx.format_time()
-        crawl_date = self.ctx.format_date()
         news_data = convert_crawl_results_to_news_data(
             results, id_to_name, failed_ids, crawl_time, crawl_date
         )
@@ -1035,6 +1038,33 @@ class NewsAnalyzer:
             print(f"TXT 快照已保存: {txt_file}")
 
         return results, id_to_name, failed_ids
+
+    def _build_source_crawl_contexts(self, crawl_date: str) -> Dict[str, SourceCrawlContext]:
+        """基于当天已落盘数据，为每个源构造增量抓取上下文。"""
+        contexts = {
+            platform["id"]: SourceCrawlContext(
+                source_id=platform["id"],
+                crawl_date=crawl_date,
+                timezone=self.ctx.timezone,
+            )
+            for platform in self.ctx.platforms
+        }
+
+        existing_data = self.storage_manager.get_today_all_data(crawl_date)
+        if not existing_data or not existing_data.items:
+            return contexts
+
+        for source_id, news_list in existing_data.items.items():
+            context = contexts.get(source_id)
+            if context is None:
+                continue
+            for item in news_list:
+                if item.url:
+                    context.seen_urls.add(normalize_url(item.url, source_id))
+                if item.title:
+                    context.seen_titles.add(item.title.strip())
+
+        return contexts
 
     def _crawl_rss_data(self) -> Tuple[Optional[List[Dict]], Optional[List[Dict]], Optional[List[Dict]]]:
         """

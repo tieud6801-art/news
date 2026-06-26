@@ -41,35 +41,69 @@ def _fetch_xueqiu_hotstock():
     ]
 
 
-def _fetch_xueqiu_news():
+def _fetch_xueqiu_news(context=None):
     """快讯"""
-    url = "https://xueqiu.com/statuses/livenews/list.json?since_id=-1&max_id=-1&count=30"
     cookie = _get_xueqiu_cookie()
-    res = fetch(
-        url,
-        headers={
-            "cookie": cookie,
-            "referer": "https://xueqiu.com/",
-            "origin": "https://xueqiu.com",
-            "x-requested-with": "XMLHttpRequest",
-        },
-        response_type="json",
-    )
-    items = res.get("items", [])
     news = []
-    for item in items:
-        text = item.get("text", "")
-        # 清理 HTML 标签和多余空白
-        title = re.sub(r"<[^>]+>", "", text)
-        title = re.sub(r"\s+", " ", title).strip()
-        if not title:
-            continue
-        news.append({
-            "id": str(item.get("id", "")),
-            "title": title,
-            "url": item.get("target") or "https://xueqiu.com",
-            "pubDate": item.get("created_at"),
-        })
+    seen_keys = set()
+    max_id = "-1"
+    max_pages = context.max_pages if context else 1
+
+    for _ in range(max_pages):
+        url = f"https://xueqiu.com/statuses/livenews/list.json?since_id=-1&max_id={max_id}&count=30"
+        res = fetch(
+            url,
+            headers={
+                "cookie": cookie,
+                "referer": "https://xueqiu.com/",
+                "origin": "https://xueqiu.com",
+                "x-requested-with": "XMLHttpRequest",
+            },
+            response_type="json",
+        )
+        items = res.get("items", [])
+        if not items:
+            break
+
+        page_has_crawl_date = False
+        page_has_before_crawl_date = False
+        for item in items:
+            text = item.get("text", "")
+            # 清理 HTML 标签和多余空白
+            title = re.sub(r"<[^>]+>", "", text)
+            title = re.sub(r"\s+", " ", title).strip()
+            if not title:
+                continue
+
+            pub_date = item.get("created_at")
+            if context:
+                if context.is_crawl_date_timestamp_ms(pub_date):
+                    page_has_crawl_date = True
+                elif context.is_before_crawl_date_timestamp_ms(pub_date):
+                    page_has_before_crawl_date = True
+                    continue
+
+            item_id = str(item.get("id", ""))
+            item_url = item.get("target") or "https://xueqiu.com"
+            key = item_url or item_id or title
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
+            news.append({
+                "id": item_id,
+                "title": title,
+                "url": item_url,
+                "pubDate": pub_date,
+            })
+
+        next_max_id = str(res.get("next_max_id") or res.get("max_id") or items[-1].get("id") or "")
+        if not context or not next_max_id or next_max_id == max_id:
+            break
+        max_id = next_max_id
+        if page_has_before_crawl_date or not page_has_crawl_date:
+            break
+
     return news
 
 

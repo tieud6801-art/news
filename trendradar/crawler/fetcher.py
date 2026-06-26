@@ -134,6 +134,7 @@ class DataFetcher:
         self,
         id_info: Union[str, Tuple[str, str]],
         max_retries: int = 2,
+        crawl_context=None,
     ) -> Tuple[Optional[List[Dict]], str, str]:
         """
         直接爬取数据（不通过 NewsNow API）
@@ -165,7 +166,7 @@ class DataFetcher:
         retries = 0
         while retries <= max_retries:
             try:
-                items = registry.fetch(id_value)
+                items = registry.fetch(id_value, crawl_context)
                 print(f"[直接爬取] 获取 {id_value} 成功（{len(items)} 条）")
                 return items, id_value, alias
             except Exception as e:
@@ -215,6 +216,7 @@ class DataFetcher:
         ids_list: List[Union[str, Tuple[str, str]]],
         request_interval: int = 100,
         fetch_mode: Optional[str] = None,
+        crawl_contexts: Optional[Dict[str, object]] = None,
     ) -> Tuple[Dict, Dict, List]:
         """
         爬取多个网站数据
@@ -243,7 +245,8 @@ class DataFetcher:
 
             if mode == "direct":
                 # 直接爬取模式
-                items, _, _ = self.fetch_data_direct(id_info)
+                crawl_context = (crawl_contexts or {}).get(id_value)
+                items, _, _ = self.fetch_data_direct(id_info, crawl_context=crawl_context)
                 if items is not None:
                     results[id_value] = self._convert_items_to_results(id_value, items)
                 else:

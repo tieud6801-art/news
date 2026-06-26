@@ -1,15 +1,27 @@
 # coding=utf-8
 """联合早报 - HTML Scraping（GB2312 编码）"""
 
+import logging
 import requests
 from bs4 import BeautifulSoup
 
-from .base import source_fetcher, HTML_PARSER
+from .base import source_fetcher, fetch, HTML_PARSER
 from .utils import parse_relative_date
+
+logger = logging.getLogger(__name__)
 
 
 @source_fetcher("zaobao")
 def fetch_zaobao():
+    try:
+        return _fetch_zaobao_direct()
+    except Exception as exc:
+        logger.warning(f"直连 zaobao 失败，尝试 NewsNow 备用源: {exc}")
+        fallback = fetch("https://newsnow.busiyi.world/api/s?id=zaobao&latest", response_type="json")
+        return fallback.get("items", [])
+
+
+def _fetch_zaobao_direct():
     base_url = "https://www.zaochenbao.com"
 
     # GB2312 编码页面，需要以 bytes 方式获取后解码

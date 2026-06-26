@@ -8,9 +8,15 @@
 
 import logging
 import re
-from typing import Any, Callable, Coroutine, Dict, List, Optional
+from dataclasses import dataclass, field
+from datetime import datetime
+from inspect import signature
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
 
+import pytz
 import requests
+
+from trendradar.utils.url import normalize_url
 
 # 检测可用的 HTML 解析器
 try:
@@ -94,9 +100,45 @@ def fetch_raw(url: str, headers: Optional[Dict[str, str]] = None, timeout: int =
 # 源注册系统
 # ============================================================
 
-# 源爬虫函数签名: () -> List[Dict]
+# 源爬虫函数签名: () -> List[Dict] 或 (SourceCrawlContext) -> List[Dict]
 # 每个 Dict 至少包含 {"title": str, "url": str}，可选 {"id": str, "mobileUrl": str, "pubDate": int, "extra": dict}
-SourceFetcherFn = Callable[[], List[Dict[str, Any]]]
+SourceFetcherFn = Callable[..., List[Dict[str, Any]]]
+
+
+@dataclass
+class SourceCrawlContext:
+    """单个数据源的本次抓取上下文。"""
+
+    source_id: str
+    crawl_date: str
+    timezone: str = "Asia/Shanghai"
+    seen_urls: Set[str] = field(default_factory=set)
+    seen_titles: Set[str] = field(default_factory=set)
+    max_pages: int = 50
+
+    def normalize_url(self, url: str) -> str:
+        return normalize_url(url, self.source_id) if url else ""
+
+    def has_seen_item(self, item: Dict[str, Any]) -> bool:
+        url = self.normalize_url(item.get("url", ""))
+        title = str(item.get("title", "")).strip()
+        return bool((url and url in self.seen_urls) or (title and title in self.seen_titles))
+
+    def local_date_from_timestamp_ms(self, timestamp_ms: Optional[int]) -> str:
+        if not timestamp_ms:
+            return ""
+        try:
+            tz = pytz.timezone(self.timezone)
+            return datetime.fromtimestamp(int(timestamp_ms) / 1000, tz).strftime("%Y-%m-%d")
+        except Exception:
+            return ""
+
+    def is_crawl_date_timestamp_ms(self, timestamp_ms: Optional[int]) -> bool:
+        return self.local_date_from_timestamp_ms(timestamp_ms) == self.crawl_date
+
+    def is_before_crawl_date_timestamp_ms(self, timestamp_ms: Optional[int]) -> bool:
+        local_date = self.local_date_from_timestamp_ms(timestamp_ms)
+        return bool(local_date and local_date < self.crawl_date)
 
 
 class SourceRegistry:
@@ -126,11 +168,13 @@ class SourceRegistry:
         return source_id in cls._registry
 
     @classmethod
-    def fetch(cls, source_id: str) -> List[Dict[str, Any]]:
+    def fetch(cls, source_id: str, context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
         """执行指定源的抓取"""
         fn = cls._registry.get(source_id)
         if fn is None:
             raise ValueError(f"未注册的数据源: {source_id}")
+        if context is not None and len(signature(fn).parameters) > 0:
+            return fn(context)
         return fn()
 
 

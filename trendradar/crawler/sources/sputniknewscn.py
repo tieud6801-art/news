@@ -2,6 +2,7 @@
 """俄罗斯卫星通讯社中文 - HTML Scraping + 代理回退"""
 
 import logging
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -13,13 +14,39 @@ logger = logging.getLogger(__name__)
 _PROXY_URL = "https://newsnow-omega-one.vercel.app/api/s?id=sputniknewscn&latest="
 
 
-def _fetch_direct():
+def _fetch_direct(context=None):
     """直接抓取"""
-    html = fetch("https://sputniknews.cn/services/widget/lenta/", response_type="text")
+    base_url = "https://sputniknews.cn"
+    url = f"{base_url}/services/widget/lenta/"
+    news = []
+    seen_keys = set()
+
+    max_pages = context.max_pages if context else 1
+    for _ in range(max_pages):
+        html = fetch(url, response_type="text")
+        page_news, next_url, page_has_crawl_date, page_has_before_crawl_date = _parse_lenta_page(
+            html, base_url, context, seen_keys
+        )
+        news.extend(page_news)
+
+        if not context or not next_url:
+            break
+        if page_has_before_crawl_date or not page_has_crawl_date:
+            break
+        url = urljoin(base_url, next_url)
+
+    return news
+
+
+def _parse_lenta_page(html, base_url, context=None, seen_keys=None):
+    if seen_keys is None:
+        seen_keys = set()
     soup = BeautifulSoup(html, HTML_PARSER)
 
     items = soup.select(".lenta__item")
     news = []
+    page_has_crawl_date = False
+    page_has_before_crawl_date = False
 
     for item in items:
         a = item.select_one("a")
@@ -42,16 +69,31 @@ def _fetch_direct():
         except (ValueError, TypeError):
             timestamp = 0
 
+        if context:
+            if context.is_crawl_date_timestamp_ms(timestamp):
+                page_has_crawl_date = True
+            elif context.is_before_crawl_date_timestamp_ms(timestamp):
+                page_has_before_crawl_date = True
+                continue
+
+        url = f"{base_url}{href}"
+        key = url or title
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
         news.append({
             "id": href,
             "title": title,
-            "url": f"https://sputniknews.cn{href}",
+            "url": url,
             "extra": {
                 "date": timestamp,
             },
         })
 
-    return news
+    next_link = soup.select_one('[data-next*="more.html"]')
+    next_url = str(next_link.get("data-next", "")) if next_link else ""
+    return news, next_url, page_has_crawl_date, page_has_before_crawl_date
 
 
 def _fetch_via_proxy():
@@ -65,9 +107,9 @@ def _fetch_via_proxy():
 
 
 @source_fetcher("sputniknewscn")
-def fetch_sputniknewscn():
+def fetch_sputniknewscn(context=None):
     try:
-        result = _fetch_direct()
+        result = _fetch_direct(context)
         if result:
             return result
     except Exception as e:
