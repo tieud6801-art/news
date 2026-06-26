@@ -1360,7 +1360,7 @@ class NewsAnalyzer:
                 new_urls.add(item.get("url", "") or item.get("title", ""))
 
         feed_map: Dict[str, List[Dict]] = {}
-        for idx, item in enumerate(rss_items):
+        for item in rss_items:
             source_name = item.get("feed_name", "RSS")
             if source_name not in feed_map:
                 feed_map[source_name] = []
@@ -1371,7 +1371,7 @@ class NewsAnalyzer:
                 "title": item["title"],
                 "url": item.get("url", ""),
                 "source_name": source_name,
-                "ranks": [idx + 1],
+                "ranks": [],
                 "is_new": is_new,
                 "time_display": time_display,
             })
