@@ -17,6 +17,7 @@ from . import (
     ithome,
     gelonghui,
     xinhua,
+    china_policy,
     cankaoxiaoxi,
     eastmoney,
     wallstreetcn,

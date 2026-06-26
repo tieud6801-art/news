@@ -1,0 +1,266 @@
+# coding=utf-8
+"""中国政府/部委权威政策源。"""
+
+import ast
+import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin
+
+import pytz
+from bs4 import BeautifulSoup
+
+from .base import HTML_PARSER, SourceCrawlContext, fetch, fetch_raw, get_session, register_sources
+
+
+_TZ = "Asia/Shanghai"
+_DATE_RE = re.compile(r"(20\d{2})[-/](\d{1,2})[-/](\d{1,2})")
+
+_GOV_POLICY_JSON = {
+    "gov-zhengceku-bmwj": "https://www.gov.cn/zhengce/zhengceku/bmwj/TONGYONGGAILAN.json",
+    "gov-zhengceku-gwywj": "https://www.gov.cn/zhengce/zhengceku/gwywj/TONGYONGGAILAN.json",
+}
+
+_AUTHORIZED_READ_PAGES = {
+    "mofcom-zcfb": "https://www.mofcom.gov.cn/zwgk/zcfb/",
+    "miit-zcjd": "https://www.miit.gov.cn/zwgk/zcjd/index.html",
+}
+
+_CHINATAX_LATEST_API = "https://www.chinatax.gov.cn/getFileListByCodeId"
+
+
+def _date_to_timestamp_ms(date_str: str) -> int:
+    date_str = _normalize_date(date_str)
+    if not date_str:
+        return 0
+    tz = pytz.timezone(_TZ)
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    return int(tz.localize(dt).timestamp() * 1000)
+
+
+def _normalize_date(text: str) -> str:
+    match = _DATE_RE.search(text or "")
+    if not match:
+        return ""
+    year, month, day = match.groups()
+    return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+
+
+def _should_include(
+    news_item: Dict[str, Any],
+    timestamp_ms: int,
+    context: Optional[SourceCrawlContext],
+    seen_keys: set,
+) -> bool:
+    key = news_item.get("url") or news_item.get("id") or news_item.get("title")
+    if key in seen_keys:
+        return False
+    seen_keys.add(key)
+
+    if context:
+        if not context.is_crawl_date_timestamp_ms(timestamp_ms):
+            return False
+        if context.has_seen_item(news_item):
+            return False
+
+    return True
+
+
+def _build_item(title: str, url: str, date_str: str) -> Dict[str, Any]:
+    timestamp_ms = _date_to_timestamp_ms(date_str)
+    return {
+        "id": url,
+        "title": title,
+        "url": url,
+        "pubDate": timestamp_ms,
+        "extra": {
+            "date": timestamp_ms,
+            "info": date_str,
+        },
+    }
+
+
+def _fetch_gov_policy_json(source_id: str, context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    data = fetch(_GOV_POLICY_JSON[source_id], response_type="json", timeout=20)
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+
+    for row in data:
+        title = str(row.get("TITLE", "")).strip()
+        url = str(row.get("URL", "")).strip()
+        date_str = _normalize_date(str(row.get("DOCRELPUBTIME", "")))
+        if not title or not url or not date_str:
+            continue
+
+        if context and date_str < context.crawl_date:
+            break
+        if context and date_str > context.crawl_date:
+            continue
+
+        item = _build_item(title, url, date_str)
+        if _should_include(item, item["pubDate"], context, seen_keys):
+            news.append(item)
+        if not context and len(news) >= 50:
+            break
+
+    return news
+
+
+def _fetch_static_list(page_url: str, context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    response = fetch_raw(page_url, timeout=15)
+    response.raise_for_status()
+    if not response.encoding or response.encoding.lower() == "iso-8859-1":
+        response.encoding = response.apparent_encoding or "utf-8"
+
+    soup = BeautifulSoup(response.text, HTML_PARSER)
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+
+    for a in soup.select("a[href]"):
+        title = (a.get("title") or a.get_text(" ", strip=True)).strip()
+        href = str(a.get("href", "")).strip()
+        if not title or len(title) < 6 or not href:
+            continue
+
+        parent = a.find_parent(["li", "tr", "div", "p"])
+        text = parent.get_text(" ", strip=True) if parent else a.get_text(" ", strip=True)
+        date_str = _normalize_date(text)
+        if not date_str:
+            continue
+        if context and date_str < context.crawl_date:
+            break
+        if context and date_str > context.crawl_date:
+            continue
+
+        item = _build_item(title, urljoin(page_url, href), date_str)
+        if _should_include(item, item["pubDate"], context, seen_keys):
+            news.append(item)
+        if not context and len(news) >= 50:
+            break
+
+    return news
+
+
+def _fetch_authorized_read_html(page_url: str) -> str:
+    response = fetch_raw(page_url, timeout=15)
+    response.raise_for_status()
+    response.encoding = response.apparent_encoding or response.encoding or "utf-8"
+
+    soup = BeautifulSoup(response.text, HTML_PARSER)
+    script = soup.select_one("script[url][queryData]")
+    if not script:
+        return ""
+
+    query_data = script.get("querydata") or script.get("queryData") or ""
+    api_url = urljoin(page_url, str(script.get("url", "")))
+    params = ast.literal_eval(query_data)
+    result = fetch(
+        api_url,
+        headers={"Referer": page_url},
+        params=params,
+        response_type="json",
+        timeout=15,
+    )
+    return result.get("data", {}).get("html", "")
+
+
+def _fetch_authorized_read_list(source_id: str, context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    page_url = _AUTHORIZED_READ_PAGES[source_id]
+    html = _fetch_authorized_read_html(page_url)
+    if not html:
+        return []
+
+    soup = BeautifulSoup(html, HTML_PARSER)
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+
+    for li in soup.select("li"):
+        a = li.select_one("a[href]")
+        if not a:
+            continue
+        title = (a.get("title") or a.get_text(" ", strip=True)).strip()
+        date_str = _normalize_date(li.get_text(" ", strip=True))
+        if not title or not date_str:
+            continue
+
+        if context and date_str < context.crawl_date:
+            break
+        if context and date_str > context.crawl_date:
+            continue
+
+        item = _build_item(title, urljoin(page_url, str(a.get("href", ""))), date_str)
+        if _should_include(item, item["pubDate"], context, seen_keys):
+            news.append(item)
+        if not context and len(news) >= 50:
+            break
+
+    return news
+
+
+def fetch_chinatax_latest(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    session = get_session()
+    response = session.post(
+        _CHINATAX_LATEST_API,
+        data={
+            "codeId": "",
+            "channelId": "29a88b67e4b149cfa9fac7919dfb08a5",
+            "page": 1,
+            "size": 20,
+        },
+        headers={"Referer": "https://fgk.chinatax.gov.cn/"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    rows = response.json().get("results", {}).get("data", {}).get("results", [])
+
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+    for row in rows:
+        title = str(row.get("title", "")).strip()
+        url = str(row.get("url", "")).strip()
+        date_str = _normalize_date(str(row.get("publishedTimeStr", "")))
+        if not title or not url or not date_str:
+            continue
+
+        if context and date_str < context.crawl_date:
+            break
+        if context and date_str > context.crawl_date:
+            continue
+
+        item = _build_item(title, url, date_str)
+        if _should_include(item, item["pubDate"], context, seen_keys):
+            news.append(item)
+        if not context and len(news) >= 50:
+            break
+
+    return news
+
+
+def fetch_gov_zhengceku_bmwj(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_gov_policy_json("gov-zhengceku-bmwj", context)
+
+
+def fetch_gov_zhengceku_gwywj(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_gov_policy_json("gov-zhengceku-gwywj", context)
+
+
+def fetch_ndrc_tzgg(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list("https://www.ndrc.gov.cn/xwdt/tzgg/", context)
+
+
+def fetch_mofcom_zcfb(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_authorized_read_list("mofcom-zcfb", context)
+
+
+def fetch_miit_zcjd(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_authorized_read_list("miit-zcjd", context)
+
+
+register_sources({
+    "gov-zhengceku-bmwj": fetch_gov_zhengceku_bmwj,
+    "gov-zhengceku-gwywj": fetch_gov_zhengceku_gwywj,
+    "ndrc-tzgg": fetch_ndrc_tzgg,
+    "mofcom-zcfb": fetch_mofcom_zcfb,
+    "miit-zcjd": fetch_miit_zcjd,
+    "chinatax-latest": fetch_chinatax_latest,
+})

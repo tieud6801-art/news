@@ -104,6 +104,18 @@ platforms:
       name: "腾讯新闻"
     - id: "xinhua"
       name: "新华网"
+    - id: "gov-zhengceku-bmwj"
+      name: "国务院政策库-部门文件"
+    - id: "gov-zhengceku-gwywj"
+      name: "国务院政策库-国务院文件"
+    - id: "ndrc-tzgg"
+      name: "国家发改委通知公告"
+    - id: "mofcom-zcfb"
+      name: "商务部政策发布"
+    - id: "miit-zcjd"
+      name: "工信部政策解读"
+    - id: "chinatax-latest"
+      name: "国家税务总局最新文件"
 
     # -- 国际 --
     - id: "cankaoxiaoxi"
@@ -178,6 +190,12 @@ rss:
     - id: "chinadaily"
       name: "中国日报"
       url: "http://www.chinadaily.com.cn/rss/china_rss.xml"
+
+    # === 中国政府/部委权威政策与数据源 ===
+    - id: "stats-zxfb"
+      name: "国家统计局最新发布"
+      url: "https://www.stats.gov.cn/sj/zxfb/rss.xml"
+      max_items: 50
 
     # -- RSSHub 源（使用公共 RSSHub 实例） --
     - id: "cctv-china"
