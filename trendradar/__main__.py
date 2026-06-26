@@ -670,6 +670,15 @@ class NewsAnalyzer:
         rss_feed_ids = standalone_config.get("RSS_FEEDS", [])
         max_items = standalone_config.get("MAX_ITEMS", 20)
 
+        if "*" in platform_ids:
+            platform_ids = [platform_id for platform_id in self.ctx.platform_ids if platform_id in results]
+        if "*" in rss_feed_ids:
+            rss_feed_ids = [
+                feed.get("id", "")
+                for feed in self.ctx.rss_feeds
+                if feed.get("id") and feed.get("enabled", True)
+            ]
+
         if not platform_ids and not rss_feed_ids:
             return None
 

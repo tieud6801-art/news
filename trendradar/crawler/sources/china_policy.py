@@ -14,7 +14,7 @@ from .base import HTML_PARSER, SourceCrawlContext, fetch, fetch_raw, get_session
 
 
 _TZ = "Asia/Shanghai"
-_DATE_RE = re.compile(r"((?:19|20)\d{2})[-/](\d{1,2})[-/](\d{1,2})")
+_DATE_RE = re.compile(r"((?:19|20)\d{2})[-/.](\d{1,2})[-/.](\d{1,2})")
 _CN_DATE_RE = re.compile(r"((?:19|20)\d{2})年(\d{1,2})月(\d{1,2})")
 _COMPACT_DATE_RE = re.compile(r"((?:19|20)\d{2})(\d{2})(\d{2})")
 _MONTH_DAY_RE = re.compile(r"(?<!\d)(\d{1,2})[-/](\d{1,2})(?!\d)")
@@ -28,11 +28,24 @@ _GOV_POLICY_JSON = {
 }
 
 _STATIC_LIST_PAGES = {
+    "cac-zcfg": "https://www.cac.gov.cn/wxzw/zcfg/A093703index_1.htm",
+    "cac-data-zcfg": "https://www.cac.gov.cn/wxzw/sjzl/zcfg/A09370805index_1.htm",
+    "nda-xwfb": "https://www.nda.gov.cn/sjj/swdt/xwfb/list/index_pc_1.html",
+    "nda-tzgg": "https://www.nda.gov.cn/sjj/zwgk/tzgg/list/index_pc_1.html",
     "ndrc-tzgg": "https://www.ndrc.gov.cn/xwdt/tzgg/",
     "ndrc-xwfb": "https://www.ndrc.gov.cn/xwdt/xwfb/",
     "mof-zcfb": "https://www.mof.gov.cn/zhengwuxinxi/zhengcefabu/",
     "moa-flfg": "https://fgs.moa.gov.cn/flfg/",
     "moa-zfjd": "https://fgs.moa.gov.cn/zfjd/",
+    "pbc-news": "https://www.pbc.gov.cn/goutongjiaoliu/113456/113469/index.html",
+    "safe-whxw": "https://www.safe.gov.cn/safe/whxw/index.html",
+    "safe-zcfg": "https://www.safe.gov.cn/safe/zcfg/index.html",
+    "safe-zcfgjd": "https://www.safe.gov.cn/safe/zcfgjd/index.html",
+}
+
+_NHSA_RECORD_PAGES = {
+    "nhsa-zcfg": "https://www.nhsa.gov.cn/col/col104/index.html",
+    "nhsa-zcjd": "https://www.nhsa.gov.cn/col/col105/index.html",
 }
 
 _AUTHORIZED_READ_PAGES = {
@@ -46,6 +59,9 @@ _MOE_HOME_SECTIONS = {
 }
 
 _CHINATAX_LATEST_API = "https://www.chinatax.gov.cn/getFileListByCodeId"
+_CSRC_NEWS_API = "https://www.csrc.gov.cn/searchList/a1a078ee0bc54721ab6b148884c784a8"
+_NFRA_DOC_API = "https://www.nfra.gov.cn/cbircweb/DocInfo/SelectDocByItemIdAndChild"
+_NFRA_DETAIL_URL = "https://www.nfra.gov.cn/cn/view/pages/ItemDetail.html"
 
 
 def _default_year() -> int:
@@ -171,6 +187,43 @@ def _fetch_static_list(page_url: str, context: Optional[SourceCrawlContext] = No
 
         date_str = _find_date_for_anchor(a, fallback_year=fallback_year)
         if not date_str:
+            continue
+        if context and date_str != context.crawl_date:
+            continue
+
+        item = _build_item(title, urljoin(page_url, href), date_str, fallback_year=fallback_year)
+        if _should_include(item, item["pubDate"], context, seen_keys):
+            news.append(item)
+        if not context and len(news) >= 50:
+            break
+
+    return news
+
+
+def _fetch_nhsa_records(source_id: str, context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    page_url = _NHSA_RECORD_PAGES[source_id]
+    response = fetch_raw(page_url, timeout=15)
+    response.raise_for_status()
+    response.encoding = response.apparent_encoding or response.encoding or "utf-8"
+
+    record_html_list = re.findall(r"<record><!\[CDATA\[(.*?)\]\]></record>", response.text, flags=re.S)
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+    fallback_year = int(context.crawl_date[:4]) if context else _default_year()
+
+    for record_html in record_html_list:
+        soup = BeautifulSoup(record_html, HTML_PARSER)
+        a = soup.select_one("a[href]")
+        if not a:
+            continue
+
+        title = (a.get("title") or a.get_text(" ", strip=True)).strip()
+        href = str(a.get("href", "")).strip()
+        span_text = " ".join(span.get_text(" ", strip=True) for span in reversed(soup.select("span")))
+        date_str = _normalize_date(span_text, fallback_year=fallback_year)
+        if not date_str:
+            date_str = _normalize_date(soup.get_text(" ", strip=True), fallback_year=fallback_year)
+        if not title or not href or not date_str:
             continue
         if context and date_str != context.crawl_date:
             continue
@@ -313,6 +366,87 @@ def fetch_chinatax_latest(context: Optional[SourceCrawlContext] = None) -> List[
     return news
 
 
+def fetch_csrc_news(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    result = fetch(
+        _CSRC_NEWS_API,
+        headers={"Referer": "https://www.csrc.gov.cn/csrc/c100028/common_xq_list.shtml"},
+        params={
+            "_isAgg": "true",
+            "_isJson": "true",
+            "_pageSize": 20,
+            "_template": "index",
+            "_rangeTimeGte": "",
+            "_channelName": "",
+            "page": 1,
+        },
+        response_type="json",
+        timeout=15,
+    )
+    rows = result.get("data", {}).get("results", [])
+
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+    for row in rows:
+        title = str(row.get("title", "")).strip()
+        url = str(row.get("url", "")).strip()
+        date_str = _normalize_date(str(row.get("publishedTimeStr", "")))
+        if not title or not url or not date_str:
+            continue
+        if url.startswith("//"):
+            url = f"https:{url}"
+
+        if context and date_str != context.crawl_date:
+            continue
+
+        item = _build_item(title, url, date_str)
+        if _should_include(item, item["pubDate"], context, seen_keys):
+            news.append(item)
+        if not context and len(news) >= 50:
+            break
+
+    return news
+
+
+def fetch_nfra_gfxwj(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    result = fetch(
+        _NFRA_DOC_API,
+        headers={"Referer": "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemId=928"},
+        params={
+            "itemId": 928,
+            "pageIndex": 1,
+            "pageSize": 18,
+        },
+        response_type="json",
+        timeout=15,
+    )
+    rows = result.get("data", {}).get("rows", [])
+
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+    for row in rows:
+        title = str(row.get("docSubtitle") or row.get("docTitle") or "").strip()
+        date_str = _normalize_date(str(row.get("publishDate") or row.get("builddate") or ""))
+        doc_id = str(row.get("docId") or "").strip()
+        if not title or not date_str or not doc_id:
+            continue
+        if context and date_str != context.crawl_date:
+            continue
+
+        if str(row.get("isTitleLink")) == "1" and row.get("titleLink"):
+            url = urljoin("https://www.nfra.gov.cn/", str(row.get("titleLink")))
+        else:
+            generaltype = str(row.get("generaltype") or "0")
+            url = f"{_NFRA_DETAIL_URL}?docId={doc_id}&itemId=928&generaltype={generaltype}"
+
+        item = _build_item(title, url, date_str)
+        if _should_include(item, item["pubDate"], context, seen_keys):
+            news.append(item)
+        if not context and len(news) >= 50:
+            break
+
+    return news
+
+
 def fetch_gov_zhengceku_bmwj(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
     return _fetch_gov_policy_json("gov-zhengceku-bmwj", context)
 
@@ -339,6 +473,22 @@ def fetch_ndrc_tzgg(context: Optional[SourceCrawlContext] = None) -> List[Dict[s
 
 def fetch_ndrc_xwfb(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
     return _fetch_static_list(_STATIC_LIST_PAGES["ndrc-xwfb"], context)
+
+
+def fetch_cac_zcfg(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list(_STATIC_LIST_PAGES["cac-zcfg"], context)
+
+
+def fetch_cac_data_zcfg(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list(_STATIC_LIST_PAGES["cac-data-zcfg"], context)
+
+
+def fetch_nda_xwfb(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list(_STATIC_LIST_PAGES["nda-xwfb"], context)
+
+
+def fetch_nda_tzgg(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list(_STATIC_LIST_PAGES["nda-tzgg"], context)
 
 
 def fetch_mofcom_zcfb(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
@@ -369,6 +519,30 @@ def fetch_moa_zfjd(context: Optional[SourceCrawlContext] = None) -> List[Dict[st
     return _fetch_static_list(_STATIC_LIST_PAGES["moa-zfjd"], context)
 
 
+def fetch_pbc_news(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list(_STATIC_LIST_PAGES["pbc-news"], context)
+
+
+def fetch_safe_whxw(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list(_STATIC_LIST_PAGES["safe-whxw"], context)
+
+
+def fetch_safe_zcfg(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list(_STATIC_LIST_PAGES["safe-zcfg"], context)
+
+
+def fetch_safe_zcfgjd(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_static_list(_STATIC_LIST_PAGES["safe-zcfgjd"], context)
+
+
+def fetch_nhsa_zcfg(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_nhsa_records("nhsa-zcfg", context)
+
+
+def fetch_nhsa_zcjd(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_nhsa_records("nhsa-zcjd", context)
+
+
 register_sources({
     "gov-zhengce-zuixin": fetch_gov_zhengce_zuixin,
     "gov-zhengce-jiedu": fetch_gov_zhengce_jiedu,
@@ -377,6 +551,10 @@ register_sources({
     "gov-zhengceku-gwywj": fetch_gov_zhengceku_gwywj,
     "ndrc-tzgg": fetch_ndrc_tzgg,
     "ndrc-xwfb": fetch_ndrc_xwfb,
+    "cac-zcfg": fetch_cac_zcfg,
+    "cac-data-zcfg": fetch_cac_data_zcfg,
+    "nda-xwfb": fetch_nda_xwfb,
+    "nda-tzgg": fetch_nda_tzgg,
     "mofcom-zcfb": fetch_mofcom_zcfb,
     "miit-zcjd": fetch_miit_zcjd,
     "mof-zcfb": fetch_mof_zcfb,
@@ -385,4 +563,12 @@ register_sources({
     "moa-flfg": fetch_moa_flfg,
     "moa-zfjd": fetch_moa_zfjd,
     "chinatax-latest": fetch_chinatax_latest,
+    "pbc-news": fetch_pbc_news,
+    "safe-whxw": fetch_safe_whxw,
+    "safe-zcfg": fetch_safe_zcfg,
+    "safe-zcfgjd": fetch_safe_zcfgjd,
+    "csrc-news": fetch_csrc_news,
+    "nfra-gfxwj": fetch_nfra_gfxwj,
+    "nhsa-zcfg": fetch_nhsa_zcfg,
+    "nhsa-zcjd": fetch_nhsa_zcjd,
 })
