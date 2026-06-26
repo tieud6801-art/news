@@ -1229,11 +1229,19 @@ class NewsAnalyzer:
         elif self.report_mode == "current":
             latest_data = self.storage_manager.get_latest_rss_data(rss_data.date)
             if latest_data:
-                raw_rss_items = self._convert_rss_items_to_list(latest_data.items, latest_data.id_to_name)
+                raw_rss_items = self._convert_rss_items_to_list(
+                    latest_data.items,
+                    latest_data.id_to_name,
+                    apply_freshness_filter=False,
+                )
         else:  # daily
             all_data = self.storage_manager.get_rss_data(rss_data.date)
             if all_data:
-                raw_rss_items = self._convert_rss_items_to_list(all_data.items, all_data.id_to_name)
+                raw_rss_items = self._convert_rss_items_to_list(
+                    all_data.items,
+                    all_data.id_to_name,
+                    apply_freshness_filter=False,
+                )
 
         # 如果 RSS 展示未启用，跳过关键词分析，只返回原始条目用于独立展示区
         if not rss_display_enabled:
@@ -1396,7 +1404,12 @@ class NewsAnalyzer:
         feed_stats.sort(key=lambda x: -x["count"])
         return feed_stats
 
-    def _convert_rss_items_to_list(self, items_dict: Dict, id_to_name: Dict) -> List[Dict]:
+    def _convert_rss_items_to_list(
+        self,
+        items_dict: Dict,
+        id_to_name: Dict,
+        apply_freshness_filter: bool = True,
+    ) -> List[Dict]:
         """将 RSS 条目字典转换为列表格式，并应用新鲜度过滤（用于推送）"""
         rss_items = []
         filtered_count = 0
@@ -1429,7 +1442,7 @@ class NewsAnalyzer:
 
             for item in items:
                 # 应用新鲜度过滤（仅在启用时）
-                if freshness_enabled and max_days > 0:
+                if apply_freshness_filter and freshness_enabled and max_days > 0:
                     if item.published_at and not is_within_days(item.published_at, max_days, timezone):
                         filtered_count += 1
                         # 记录详细信息用于 DEBUG 模式
