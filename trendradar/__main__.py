@@ -1422,6 +1422,11 @@ class NewsAnalyzer:
         default_max_age_days = freshness_config.get("MAX_AGE_DAYS", 3)
         timezone = self.ctx.config.get("TIMEZONE", DEFAULT_TIMEZONE)
         debug_mode = self.ctx.config.get("DEBUG", False)
+        enabled_feed_ids = {
+            feed_cfg.get("id", "")
+            for feed_cfg in self.ctx.rss_feeds
+            if feed_cfg.get("id") and feed_cfg.get("enabled", True)
+        }
 
         # 构建 feed_id -> max_age_days 的映射
         feed_max_age_map = {}
@@ -1435,6 +1440,8 @@ class NewsAnalyzer:
                     pass
 
         for feed_id, items in items_dict.items():
+            if enabled_feed_ids and feed_id not in enabled_feed_ids:
+                continue
             # 确定此 feed 的 max_age_days
             max_days = feed_max_age_map.get(feed_id)
             if max_days is None:

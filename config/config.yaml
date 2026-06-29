@@ -252,11 +252,6 @@ rss:
       enabled: false
       # max_age_days: 1               # 示例：只推送1天内的文章
 
-    - id: "ruanyifeng"
-      name: "阮一峰的网络日志"
-      url: "http://www.ruanyifeng.com/blog/atom.xml"
-      # max_age_days: 7               # 示例：推送7天内的文章（更新较慢的博客）
-
     - id: "yahoo-finance"
       name: "雅虎财经"
       url: "https://finance.yahoo.com/news/rssindex"
@@ -289,14 +284,6 @@ rss:
     - id: "cctv-tech"
       name: "央视科技"
       url: "https://rsshub.rssforever.com/cctv/tech"
-
-    - id: "guancha"
-      name: "观察者网"
-      url: "https://rsshub.rssforever.com/guancha/headline"
-
-    - id: "infoq"
-      name: "InfoQ"
-      url: "https://rsshub.rssforever.com/infoq/recommend"
 
     # -- 从热榜平台迁移至 RSSHub（已验证可用） --
     - id: "solidot"
@@ -334,17 +321,9 @@ rss:
       name: "彭博社"
       url: "https://bloombergnew.buzzing.cc/feed.xml"
     
-    - id: "economistnew-buzzing"
-      name: "经济学人"
-      url: "https://economistnew.buzzing.cc/feed.xml"
-    
     - id: "ft-buzzing"
       name: "金融时报"
       url: "https://ft.buzzing.cc/feed.xml"
-    
-    - id: "theguardian-buzzing"
-      name: "卫报热点"
-      url: "https://theguardian.buzzing.cc/feed.xml"
 
     - id: "finance-buzzing"
       name: "财经新闻"
