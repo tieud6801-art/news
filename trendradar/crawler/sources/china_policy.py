@@ -22,7 +22,6 @@ _MONTH_DAY_RE = re.compile(r"(?<!\d)(\d{1,2})[-/](\d{1,2})(?!\d)")
 _GOV_POLICY_JSON = {
     "gov-zhengce-zuixin": "https://www.gov.cn/zhengce/zuixin/ZUIXINZHENGCE.json",
     "gov-zhengce-jiedu": "https://www.gov.cn/zhengce/jiedu/ZCJD_QZ.json",
-    "gov-zhengce-tujie": "https://www.gov.cn/zhengce/jiedu/tujie/TUPIAN_JSON.json",
     "gov-zhengceku-bmwj": "https://www.gov.cn/zhengce/zhengceku/bmwj/TONGYONGGAILAN.json",
     "gov-zhengceku-gwywj": "https://www.gov.cn/zhengce/zhengceku/gwywj/TONGYONGGAILAN.json",
 }
@@ -463,10 +462,6 @@ def fetch_gov_zhengce_jiedu(context: Optional[SourceCrawlContext] = None) -> Lis
     return _fetch_gov_policy_json("gov-zhengce-jiedu", context)
 
 
-def fetch_gov_zhengce_tujie(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
-    return _fetch_gov_policy_json("gov-zhengce-tujie", context)
-
-
 def fetch_ndrc_tzgg(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
     return _fetch_static_list(_STATIC_LIST_PAGES["ndrc-tzgg"], context)
 
@@ -546,7 +541,6 @@ def fetch_nhsa_zcjd(context: Optional[SourceCrawlContext] = None) -> List[Dict[s
 register_sources({
     "gov-zhengce-zuixin": fetch_gov_zhengce_zuixin,
     "gov-zhengce-jiedu": fetch_gov_zhengce_jiedu,
-    "gov-zhengce-tujie": fetch_gov_zhengce_tujie,
     "gov-zhengceku-bmwj": fetch_gov_zhengceku_bmwj,
     "gov-zhengceku-gwywj": fetch_gov_zhengceku_gwywj,
     "ndrc-tzgg": fetch_ndrc_tzgg,
