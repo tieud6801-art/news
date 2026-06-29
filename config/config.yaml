@@ -482,7 +482,7 @@ display:
   #      cankaoxiaoxi, kaopu, sputniknewscn
   standalone:
     platforms:                        # 📰 实时新闻类平台（按时间流展示，不受关键词过滤）
-      - "*"                           # 全量展示所有已启用平台；抓取仍按增量去重入库
+      - "*"                           # 全量展示所有非热搜平台；抓取仍按增量去重入库
     rss_feeds:
       - "*"                           # 全量展示所有已启用 RSS；抓取仍按增量去重入库
     max_items: 0                      # 每个源最多展示条数（0=不限制）

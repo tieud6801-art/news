@@ -671,7 +671,11 @@ class NewsAnalyzer:
         max_items = standalone_config.get("MAX_ITEMS", 20)
 
         if "*" in platform_ids:
-            platform_ids = [platform_id for platform_id in self.ctx.platform_ids if platform_id in results]
+            platform_ids = [
+                platform.get("id", "")
+                for platform in self.ctx.platforms
+                if platform.get("id") in results and not platform.get("hotlist", True)
+            ]
         if "*" in rss_feed_ids:
             rss_feed_ids = [
                 feed.get("id", "")
