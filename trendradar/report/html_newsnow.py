@@ -140,6 +140,48 @@ def _regroup_by_source(stats: List[Dict]) -> List[Dict]:
     return result
 
 
+def _item_key(item: Dict) -> str:
+    url = (
+        item.get("url")
+        or item.get("mobile_url")
+        or item.get("mobileUrl")
+        or ""
+    )
+    title = item.get("title", "")
+    return str(url or title).strip()
+
+
+def _count_stat_titles(stats: List[Dict]) -> int:
+    return sum(len(stat.get("titles", [])) for stat in stats)
+
+
+def _count_group_total(groups: List[Dict]) -> int:
+    total = 0
+    for group in groups or []:
+        titles = group.get("titles", [])
+        total += int(group.get("total_count", group.get("count", len(titles))) or 0)
+    return total
+
+
+def _collect_stat_keys(keys: set, stats: List[Dict]) -> None:
+    for stat in stats or []:
+        for item in stat.get("titles", []):
+            key = _item_key(item)
+            if key:
+                keys.add(key)
+
+
+def _collect_standalone_keys(keys: set, standalone_data: Optional[Dict]) -> None:
+    if not standalone_data:
+        return
+    for group_name in ("platforms", "rss_feeds"):
+        for group in standalone_data.get(group_name, []) or []:
+            for item in group.get("items", []) or []:
+                key = _item_key(item)
+                if key:
+                    keys.add(key)
+
+
 def _card(
     label: str,
     count: int,
@@ -276,7 +318,29 @@ def render_newsnow_html_content(
         "incremental": "增量分析",
     }
     mode_text = mode_map.get(mode, mode)
-    hot_news_count = sum(len(stat.get("titles", [])) for stat in stats)
+    hot_news_count = _count_stat_titles(stats)
+    rss_news_count = _count_group_total(rss_items or [])
+    standalone_platform_count = 0
+    standalone_rss_count = 0
+    if standalone_data:
+        for platform in standalone_data.get("platforms", []) or []:
+            standalone_platform_count += int(
+                platform.get("total_count", len(platform.get("items", []))) or 0
+            )
+        for feed in standalone_data.get("rss_feeds", []) or []:
+            standalone_rss_count += int(
+                feed.get("total_count", len(feed.get("items", []))) or 0
+            )
+    if not rss_news_count:
+        rss_news_count = standalone_rss_count
+
+    displayed_keys = set()
+    _collect_stat_keys(displayed_keys, stats)
+    _collect_stat_keys(displayed_keys, rss_items or [])
+    if show_rss_new_items:
+        _collect_stat_keys(displayed_keys, rss_new_items or [])
+    _collect_standalone_keys(displayed_keys, standalone_data)
+    total_news_count = len(displayed_keys) or total_titles
 
     # -- 构建各区块 --
     sections: Dict[str, str] = {}
@@ -721,8 +785,10 @@ ol,ul{{ list-style:none; }}
       <div class="brand"><span class="accent">T</span>rend<span class="accent">R</span>adar</div>
       <div class="meta">
         <span class="pill">{html_escape(mode_text)}</span>
-        <span class="pill">总新闻 {total_titles} 条</span>
+        <span class="pill">总新闻 {total_news_count} 条</span>
         <span class="pill">热点 {hot_news_count} 条</span>
+        <span class="pill">RSS {rss_news_count} 条</span>
+        <span class="pill">平台 {standalone_platform_count} 条</span>
         <span class="pill">{now.strftime('%m-%d %H:%M')}</span>
       </div>
     </div>
