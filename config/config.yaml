@@ -56,24 +56,10 @@ platforms:
   enabled: true                         # 是否启用热榜平台抓取
   fetch_mode: "direct"                  # 获取模式: "direct"=内置爬虫直接抓取 | "api"=NewsNow API
   sources:
-    - id: "toutiao"
-      name: "今日头条"
-    - id: "baidu"
-      name: "百度热搜"
-    - id: "wallstreetcn-hot"
-      name: "华尔街见闻"
-    - id: "bilibili-hot-search"
-      name: "bilibili 热搜"
-    - id: "cls-hot"
-      name: "财联社热门"
-    - id: "ifeng"
-      name: "凤凰网"
     - id: "weibo"
       name: "微博"
     - id: "douyin"
       name: "抖音"
-    - id: "zhihu"
-      name: "知乎"
 
     # -- 科技 --
     - id: "juejin"
@@ -471,9 +457,7 @@ display:
   #
   # 📰 平台分类参考（排行榜 vs 实时新闻）：
   #   🏆 排行榜类（按热度排序，适合留在 hotlist 做关键词匹配）：
-  #      toutiao, baidu, weibo, douyin, zhihu, bilibili-hot-search,
-  #      tencent-hot, wallstreetcn-hot, cls-hot, ifeng,
-  #      juejin, xueqiu-hotstock
+  #      weibo, douyin, tencent-hot, juejin, xueqiu-hotstock
   #   📰 实时新闻类（按时间排序，适合放入此处展示全部内容）：
   #      ithome, eastmoney, gelonghui, wallstreetcn-quick,
   #      wallstreetcn-news, cls-depth, xueqiu-news, xinhua,
