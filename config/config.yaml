@@ -63,8 +63,6 @@ platforms:
       name: "抖音"
 
     # -- 科技 --
-    - id: "juejin"
-      name: "稀土掘金"
     - id: "ithome"
       name: "IT之家"
       hotlist: false
@@ -85,15 +83,11 @@ platforms:
     - id: "cls-depth"
       name: "财联社深度"
       hotlist: false
-    - id: "xueqiu-hotstock"
-      name: "雪球热股"
     - id: "xueqiu-news"
       name: "雪球快讯"
       hotlist: false
 
     # -- 国内 --
-    - id: "tencent-hot"
-      name: "腾讯新闻"
     - id: "xinhua"
       name: "新华网"
       hotlist: false
@@ -505,7 +499,7 @@ display:
   #
   # 📰 平台分类参考（排行榜 vs 实时新闻）：
   #   🏆 排行榜类（按热度排序，适合留在 hotlist 做关键词匹配）：
-  #      weibo, douyin, tencent-hot, juejin, xueqiu-hotstock
+  #      weibo, douyin
   #   📰 实时新闻类（按时间排序，适合放入此处展示全部内容）：
   #      ithome, eastmoney, gelonghui, wallstreetcn-quick,
   #      wallstreetcn-news, cls-depth, xueqiu-news, xinhua,
