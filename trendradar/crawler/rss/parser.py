@@ -10,7 +10,7 @@ import html
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from email.utils import parsedate_to_datetime
 
 try:
@@ -47,7 +47,7 @@ class RSSParser:
 
         self.max_summary_length = max_summary_length
 
-    def parse(self, content: str, feed_url: str = "") -> List[ParsedRSSItem]:
+    def parse(self, content: Union[str, bytes], feed_url: str = "") -> List[ParsedRSSItem]:
         """
         解析 RSS/Atom/JSON Feed 内容
 
@@ -76,13 +76,25 @@ class RSSParser:
 
         return items
 
-    def _is_json_feed(self, content: str) -> bool:
+    def _is_json_feed(self, content: Union[str, bytes]) -> bool:
         """
         检测内容是否为 JSON Feed 格式
 
         JSON Feed 必须包含 version 字段，值为 https://jsonfeed.org/version/1 或 1.1
         """
-        content = content.strip()
+        if isinstance(content, bytes):
+            content = content.lstrip()
+            if not content.startswith(b"{"):
+                return False
+            try:
+                content = content.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                return False
+        else:
+            content = content.strip()
+            if not content.startswith("{"):
+                return False
+
         if not content.startswith("{"):
             return False
 
@@ -93,7 +105,7 @@ class RSSParser:
         except (json.JSONDecodeError, TypeError):
             return False
 
-    def _parse_json_feed(self, content: str, feed_url: str = "") -> List[ParsedRSSItem]:
+    def _parse_json_feed(self, content: Union[str, bytes], feed_url: str = "") -> List[ParsedRSSItem]:
         """
         解析 JSON Feed 1.1 格式
 
@@ -107,6 +119,8 @@ class RSSParser:
             解析后的条目列表
         """
         try:
+            if isinstance(content, bytes):
+                content = content.decode("utf-8-sig")
             data = json.loads(content)
         except json.JSONDecodeError as e:
             raise ValueError(f"JSON Feed 解析失败 ({feed_url}): {e}")
@@ -258,7 +272,59 @@ class RSSParser:
         # 移除多余空白
         text = re.sub(r'\s+', ' ', text)
 
-        return text.strip()
+        return self._repair_mojibake(text.strip())
+
+    _CP1252_REVERSE = {
+        bytes([value]).decode("cp1252"): value
+        for value in range(128, 160)
+        if value not in {129, 141, 143, 144, 157}
+    }
+    _MOJIBAKE_MARKERS_RE = re.compile(r"[ÃÂâåæçèéäãï]|ï¼|[\u0080-\u009f]")
+    _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+
+    def _repair_mojibake(self, text: str) -> str:
+        """Repair UTF-8 text that was accidentally decoded as Windows-1252.
+
+        Some RSS mirrors send UTF-8 XML without a reliable charset. Passing
+        requests' pre-decoded response.text can turn Chinese into strings such
+        as "å·´åŸº...". This repair is intentionally conservative and only
+        accepts a candidate when the mojibake signal clearly decreases.
+        """
+        if not text or not self._MOJIBAKE_MARKERS_RE.search(text):
+            return text
+
+        raw = bytearray()
+        for char in text:
+            codepoint = ord(char)
+            if codepoint <= 255:
+                raw.append(codepoint)
+            elif char in self._CP1252_REVERSE:
+                raw.append(self._CP1252_REVERSE[char])
+            else:
+                return text
+
+        before_score = len(self._MOJIBAKE_MARKERS_RE.findall(text))
+        try:
+            repaired = raw.decode("utf-8")
+            lossy = False
+        except UnicodeDecodeError:
+            if before_score < 3:
+                return text
+            repaired = raw.decode("utf-8", errors="ignore").strip()
+            lossy = True
+
+        if not repaired:
+            return text
+
+        after_score = len(self._MOJIBAKE_MARKERS_RE.findall(repaired))
+        has_cjk = bool(self._CJK_RE.search(repaired))
+        if lossy and not has_cjk:
+            return text
+
+        if (has_cjk or after_score < before_score) and after_score * 2 < before_score:
+            return repaired
+
+        return text
 
     def _parse_date(self, entry: Any) -> Optional[str]:
         """解析发布日期"""

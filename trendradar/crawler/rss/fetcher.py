@@ -141,7 +141,7 @@ class RSSFetcher:
             response = self.session.get(feed.url, timeout=self.timeout)
             response.raise_for_status()
 
-            parsed_items = self.parser.parse(response.text, feed.url)
+            parsed_items = self.parser.parse(response.content, feed.url)
 
             # 限制条目数量（0=不限制）
             if feed.max_items > 0:
