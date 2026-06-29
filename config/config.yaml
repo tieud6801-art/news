@@ -80,6 +80,9 @@ platforms:
     - id: "cls-depth"
       name: "财联社深度"
       hotlist: false
+    - id: "cls-telegraph"
+      name: "财联社电报"
+      hotlist: false
     - id: "xueqiu-news"
       name: "雪球快讯"
       hotlist: false
@@ -296,10 +299,6 @@ rss:
       name: "金十数据"
       url: "https://rsshub.rssforever.com/jin10/flash"
 
-    - id: "cls-telegraph"
-      name: "财联社电报"
-      url: "https://rsshub.rssforever.com/cls/telegraph"
-
     - id: "tonghuashun"
       name: "同花顺资讯"
       url: "https://rsshub.rssforever.com/10jqka/realtimenews"
@@ -478,7 +477,7 @@ display:
   #      weibo, douyin
   #   📰 实时新闻类（按时间排序，适合放入此处展示全部内容）：
   #      ithome, eastmoney, wallstreetcn-quick,
-  #      wallstreetcn-news, cls-depth, xueqiu-news, xinhua,
+  #      wallstreetcn-news, cls-depth, cls-telegraph, xueqiu-news, xinhua,
   #      cankaoxiaoxi, kaopu, sputniknewscn
   standalone:
     platforms:                        # 📰 实时新闻类平台（按时间流展示，不受关键词过滤）
