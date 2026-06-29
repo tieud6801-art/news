@@ -674,7 +674,7 @@ class NewsAnalyzer:
             platform_ids = [
                 platform.get("id", "")
                 for platform in self.ctx.platforms
-                if platform.get("id") in results and not platform.get("hotlist", True)
+                if platform.get("id") and not platform.get("hotlist", True)
             ]
         if "*" in rss_feed_ids:
             rss_feed_ids = [
@@ -685,6 +685,17 @@ class NewsAnalyzer:
 
         if not platform_ids and not rss_feed_ids:
             return None
+
+        platform_name_map = {
+            platform.get("id", ""): platform.get("name", platform.get("id", ""))
+            for platform in self.ctx.platforms
+            if platform.get("id")
+        }
+        feed_name_map = {
+            feed.get("id", ""): feed.get("name", feed.get("id", ""))
+            for feed in self.ctx.rss_feeds
+            if feed.get("id") and feed.get("enabled", True)
+        }
 
         standalone_data = {
             "platforms": [],
@@ -703,11 +714,8 @@ class NewsAnalyzer:
 
         # 提取平台数据
         for platform_id in platform_ids:
-            if platform_id not in results:
-                continue
-
-            platform_name = id_to_name.get(platform_id, platform_id)
-            platform_titles = results[platform_id]
+            platform_name = platform_name_map.get(platform_id) or id_to_name.get(platform_id, platform_id)
+            platform_titles = results.get(platform_id, {})
 
             items = []
             for title, title_data in platform_titles.items():
@@ -754,19 +762,18 @@ class NewsAnalyzer:
             if max_items > 0:
                 items = items[:max_items]
 
-            if items:
-                standalone_data["platforms"].append({
-                    "id": platform_id,
-                    "name": platform_name,
-                    "total_count": total_count,
-                    "items": items,
-                })
+            standalone_data["platforms"].append({
+                "id": platform_id,
+                "name": platform_name,
+                "total_count": total_count,
+                "items": items,
+            })
 
         # 提取 RSS 数据
-        if rss_items and rss_feed_ids:
+        if rss_feed_ids:
             # 按 feed_id 分组
             feed_items_map = {}
-            for item in rss_items:
+            for item in rss_items or []:
                 feed_id = item.get("feed_id", "")
                 if feed_id in rss_feed_ids:
                     if feed_id not in feed_items_map:
@@ -783,19 +790,20 @@ class NewsAnalyzer:
 
             # 限制条数并添加到结果
             for feed_id in rss_feed_ids:
-                if feed_id in feed_items_map:
-                    feed_data = feed_items_map[feed_id]
-                    items = feed_data["items"]
-                    total_count = len(items)
-                    if max_items > 0:
-                        items = items[:max_items]
-                    if items:
-                        standalone_data["rss_feeds"].append({
-                            "id": feed_id,
-                            "name": feed_data["name"],
-                            "total_count": total_count,
-                            "items": items,
-                        })
+                feed_data = feed_items_map.get(feed_id, {
+                    "name": feed_name_map.get(feed_id, feed_id),
+                    "items": [],
+                })
+                items = feed_data["items"]
+                total_count = len(items)
+                if max_items > 0:
+                    items = items[:max_items]
+                standalone_data["rss_feeds"].append({
+                    "id": feed_id,
+                    "name": feed_data["name"],
+                    "total_count": total_count,
+                    "items": items,
+                })
 
         # 如果没有任何数据，返回 None
         if not standalone_data["platforms"] and not standalone_data["rss_feeds"]:
