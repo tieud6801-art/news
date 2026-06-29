@@ -45,15 +45,16 @@ schedule:
 
 
 # ===============================================================
-# 2. 数据源 - 热榜平台
+# 2. 数据源 - 网页平台源
 #
 # enabled: 是否启用热榜抓取（总开关）
 # sources: 平台列表
 #   - id: 平台唯一标识（勿修改）
 #   - name: 显示名称（可自定义，修改后不影响运行）
+#   - hotlist: 是否参与热榜/热点词统计；false 表示仅抓取入库和独立展示
 # ===============================================================
 platforms:
-  enabled: true                         # 是否启用热榜平台抓取
+  enabled: true                         # 是否启用网页平台源抓取
   fetch_mode: "direct"                  # 获取模式: "direct"=内置爬虫直接抓取 | "api"=NewsNow API
   sources:
     - id: "weibo"
@@ -90,76 +91,112 @@ platforms:
       name: "新华网"
     - id: "gov-zhengce-zuixin"
       name: "中国政府网-最新政策"
+      hotlist: false
     - id: "gov-zhengce-jiedu"
       name: "中国政府网-政策解读"
+      hotlist: false
     - id: "gov-zhengceku-bmwj"
       name: "国务院政策库-部门文件"
+      hotlist: false
     - id: "gov-zhengceku-gwywj"
       name: "国务院政策库-国务院文件"
+      hotlist: false
     - id: "ndrc-tzgg"
       name: "国家发改委通知公告"
+      hotlist: false
     - id: "ndrc-xwfb"
       name: "国家发改委新闻发布"
+      hotlist: false
     - id: "nfra-gfxwj"
       name: "金融监管总局政策规章"
+      hotlist: false
     - id: "cac-zcfg"
       name: "中央网信办政策法规"
+      hotlist: false
     - id: "cac-data-zcfg"
       name: "中央网信办数据治理政策"
+      hotlist: false
     - id: "nda-xwfb"
       name: "国家数据局新闻发布"
+      hotlist: false
     - id: "nda-tzgg"
       name: "国家数据局通知公告"
+      hotlist: false
     - id: "mofcom-zcfb"
       name: "商务部政策发布"
+      hotlist: false
     - id: "miit-zcjd"
       name: "工信部政策解读"
+      hotlist: false
     - id: "mof-zcfb"
       name: "财政部政策发布"
+      hotlist: false
     - id: "moe-newest-file"
       name: "教育部最新文件"
+      hotlist: false
     - id: "moe-policy-anal"
       name: "教育部政策解读"
+      hotlist: false
     - id: "moa-flfg"
       name: "农业农村部法律法规"
+      hotlist: false
     - id: "moa-zfjd"
       name: "农业农村部执法监督"
+      hotlist: false
     - id: "chinatax-latest"
       name: "国家税务总局最新文件"
+      hotlist: false
     - id: "pbc-news"
       name: "中国人民银行新闻"
+      hotlist: false
     - id: "safe-whxw"
       name: "国家外汇管理局外汇新闻"
+      hotlist: false
     - id: "safe-zcfg"
       name: "国家外汇管理局政策法规"
+      hotlist: false
     - id: "safe-zcfgjd"
       name: "国家外汇管理局政策解读"
+      hotlist: false
     - id: "csrc-news"
       name: "中国证监会要闻"
+      hotlist: false
     - id: "nhsa-zcfg"
       name: "国家医保局政策法规"
+      hotlist: false
     - id: "nhsa-zcjd"
       name: "国家医保局政策解读"
+      hotlist: false
     - id: "customs-stats"
       name: "海关总署新闻发布会"
+      hotlist: false
     - id: "cpia-news"
       name: "中国光伏行业协会"
+      hotlist: false
     - id: "caam-news"
       name: "中国汽车工业协会"
+      hotlist: false
     - id: "sac-news"
       name: "中国证券业协会"
+      hotlist: false
     - id: "crea-news"
       name: "中国房地产业协会"
+      hotlist: false
     - id: "iachina-news"
       name: "中国保险行业协会"
+      hotlist: false
     - id: "ceea-news"
       name: "中国电子企业协会"
+      hotlist: false
     - id: "camet-news"
       name: "中国城市轨道交通协会"
+      hotlist: false
     - id: "isc-news"
       name: "中国互联网协会"
+      hotlist: false
     - id: "cpema-news"
       name: "中国医药企业管理协会"
+      hotlist: false
 
     # -- 国际 --
     - id: "cankaoxiaoxi"

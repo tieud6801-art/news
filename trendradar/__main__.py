@@ -697,7 +697,7 @@ class NewsAnalyzer:
                         if latest_time is None or last_time > latest_time:
                             latest_time = last_time
 
-        # 提取热榜平台数据
+        # 提取平台数据
         for platform_id in platform_ids:
             if platform_id not in results:
                 continue

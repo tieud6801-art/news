@@ -103,6 +103,11 @@ class AppContext:
         return [p["id"] for p in self.platforms]
 
     @property
+    def hotlist_source_ids(self) -> List[str]:
+        """获取参与热榜统计的平台ID列表。"""
+        return [p["id"] for p in self.platforms if p.get("hotlist", True)]
+
+    @property
     def rss_config(self) -> Dict:
         """获取 RSS 配置"""
         return self.config.get("RSS", {})
@@ -253,6 +258,30 @@ class AppContext:
         quiet: bool = False,
     ) -> Tuple[List[Dict], int]:
         """统计词频"""
+        hotlist_ids = set(self.hotlist_source_ids)
+        results = {
+            source_id: source_results
+            for source_id, source_results in results.items()
+            if source_id in hotlist_ids
+        }
+        id_to_name = {
+            source_id: source_name
+            for source_id, source_name in id_to_name.items()
+            if source_id in hotlist_ids
+        }
+        if title_info:
+            title_info = {
+                source_id: source_titles
+                for source_id, source_titles in title_info.items()
+                if source_id in hotlist_ids
+            }
+        if new_titles:
+            new_titles = {
+                source_id: source_titles
+                for source_id, source_titles in new_titles.items()
+                if source_id in hotlist_ids
+            }
+
         return count_word_frequency(
             results=results,
             word_groups=word_groups,
