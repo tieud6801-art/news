@@ -155,7 +155,7 @@ platforms:
     - id: "nhsa-zcjd"
       name: "国家医保局政策解读"
     - id: "customs-stats"
-      name: "海关总署进出口数据"
+      name: "海关总署新闻发布会"
     - id: "cpia-news"
       name: "中国光伏行业协会"
     - id: "caam-news"

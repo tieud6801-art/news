@@ -27,7 +27,7 @@ _CDATA_RE = re.compile(r"<!\[CDATA\[(.*?)\]\]>", re.S)
 
 _SOURCE_PAGES = {
     "customs-stats": {
-        "url": "https://www.customs.gov.cn/customs/302249/zfxxgk/fdzdgknr/302274/index.html",
+        "url": "http://www.customs.gov.cn/customs/xwfb34/302330/index.html",
         "verify": False,
         "ignore_statuses": {412, 502, 504},
     },
