@@ -46,7 +46,10 @@ _SOURCE_PAGES = {
 }
 
 _CUSTOMS_SEARCH_URL = "http://search.customs.gov.cn/eportal/ui"
+_CUSTOMS_SEARCH_API_URL = "http://search.customs.gov.cn/eportalsearch/api/articleEs/search"
 _CUSTOMS_SEARCH_PAGE_ID = "7690f322e6a0410881e172afbfaaa25c"
+_CUSTOMS_SEARCH_SITE_ID = "300632"
+_CUSTOMS_SEARCH_API_KEYWORD = "发布会"
 _CUSTOMS_SEARCH_KEYWORDS = (
     "海关总署进出口情况新闻发布会",
     "国新办 进出口 情况 海关 新闻发布会",
@@ -281,6 +284,57 @@ def _extract_customs_result_url(href: str) -> str:
     return href
 
 
+def _clean_search_text(value: Any) -> str:
+    return BeautifulSoup(str(value or ""), HTML_PARSER).get_text("", strip=True)
+
+
+def _fetch_customs_api_fallback(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    session = requests.Session()
+    session.headers.update({
+        **DEFAULT_HEADERS,
+        "Origin": "http://search.customs.gov.cn",
+        "Referer": f"{_CUSTOMS_SEARCH_URL}?pageId={_CUSTOMS_SEARCH_PAGE_ID}",
+        "X-Requested-With": "XMLHttpRequest",
+    })
+
+    try:
+        response = session.post(
+            _CUSTOMS_SEARCH_API_URL,
+            data={
+                "siteId": _CUSTOMS_SEARCH_SITE_ID,
+                "keyWords": _CUSTOMS_SEARCH_API_KEYWORD,
+                "searchArea": "title",
+                "pageNum": "1",
+                "pageSize": "80",
+            },
+            timeout=18,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (ValueError, requests.RequestException) as exc:
+        logger.warning("customs search API fallback failed: %s", exc)
+        return []
+
+    rows = payload.get("data", {}).get("page", {}).get("list") or []
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+    for row in rows:
+        href = str(row.get("extStr40") or row.get("url") or "").strip()
+        if not _CUSTOMS_PRESS_URL_RE.search(urlparse(href).path):
+            continue
+        title = _clean_title(_clean_search_text(row.get("title_") or row.get("title")))
+        date_str = _normalize_date(str(row.get("showDate") or row.get("extStr7") or ""), _fallback_year(context))
+        if not title or not href or not date_str:
+            continue
+
+        item = _make_item(title, href, date_str)
+        if _should_include(item, context, seen_keys):
+            news.append(item)
+
+    news.sort(key=lambda item: item.get("pubDate", 0), reverse=True)
+    return news if context else news[:50]
+
+
 def _fetch_customs_search_fallback(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
     """Fallback for customs.gov.cn pages protected by WAF.
 
@@ -346,6 +400,9 @@ def _fetch_industry_source(source_id: str, context: Optional[SourceCrawlContext]
 
 def fetch_customs_stats(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
     items = _fetch_industry_source("customs-stats", context)
+    if items:
+        return items
+    items = _fetch_customs_api_fallback(context)
     if items:
         return items
     return _fetch_customs_search_fallback(context)
