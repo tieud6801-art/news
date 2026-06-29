@@ -5,7 +5,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 import pytz
 import requests
@@ -44,6 +44,14 @@ _SOURCE_PAGES = {
     "isc-news": {"url": "https://www.isc.org.cn/category/7329.html"},
     "cpema-news": {"url": "https://www.cpema.org/index.php?m=content&c=index&a=lists&catid=27"},
 }
+
+_CUSTOMS_SEARCH_URL = "http://search.customs.gov.cn/eportal/ui"
+_CUSTOMS_SEARCH_PAGE_ID = "7690f322e6a0410881e172afbfaaa25c"
+_CUSTOMS_SEARCH_KEYWORDS = (
+    "海关总署进出口情况新闻发布会",
+    "国新办 进出口 情况 海关 新闻发布会",
+)
+_CUSTOMS_PRESS_URL_RE = re.compile(r"/customs/xwfb34/302330/[^/]+/index\.html$")
 
 _SKIP_TITLES = {
     "更多",
@@ -262,6 +270,69 @@ def _parse_camet_cards(
     return news if context else news[:50]
 
 
+def _extract_customs_result_url(href: str) -> str:
+    href = (href or "").strip()
+    if href.startswith("//"):
+        href = f"http:{href}"
+    parsed = urlparse(href)
+    target = parse_qs(parsed.query).get("url", [""])[0]
+    if target:
+        return unquote(target).strip()
+    return href
+
+
+def _fetch_customs_search_fallback(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    """Fallback for customs.gov.cn pages protected by WAF.
+
+    The official search domain is reachable without the 412 challenge and includes
+    result dates, so it can recover the press-conference index when the source
+    list page is blocked.
+    """
+    session = requests.Session()
+    session.headers.update(DEFAULT_HEADERS)
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+
+    for keyword in _CUSTOMS_SEARCH_KEYWORDS:
+        try:
+            response = session.get(
+                _CUSTOMS_SEARCH_URL,
+                params={
+                    "pageId": _CUSTOMS_SEARCH_PAGE_ID,
+                    "senior": "0",
+                    "keyWords": keyword,
+                    "pageNum": "1",
+                },
+                timeout=18,
+            )
+            response.raise_for_status()
+            response.encoding = response.apparent_encoding or response.encoding or "utf-8"
+        except requests.RequestException as exc:
+            logger.warning("customs search fallback failed for %s: %s", keyword, exc)
+            continue
+
+        soup = BeautifulSoup(response.text, HTML_PARSER)
+        for block in soup.select(".search-text, .search-text-several"):
+            anchor = block.select_one('a[href*="/customs/xwfb34/302330/"]')
+            if not anchor:
+                continue
+            title = _clean_title(anchor.get_text("", strip=True))
+            href = _extract_customs_result_url(str(anchor.get("href", "")))
+            if not _CUSTOMS_PRESS_URL_RE.search(urlparse(href).path):
+                continue
+            date_node = block.select_one(".address")
+            date_str = _normalize_date(date_node.get_text(" ", strip=True) if date_node else "", _fallback_year(context))
+            if not title or not href or not date_str:
+                continue
+
+            item = _make_item(title, href, date_str)
+            if _should_include(item, context, seen_keys):
+                news.append(item)
+
+    news.sort(key=lambda item: item.get("pubDate", 0), reverse=True)
+    return news if context else news[:50]
+
+
 def _fetch_industry_source(source_id: str, context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
     page_url = _SOURCE_PAGES[source_id]["url"]
     html = _fetch_text(page_url, source_id)
@@ -274,7 +345,10 @@ def _fetch_industry_source(source_id: str, context: Optional[SourceCrawlContext]
 
 
 def fetch_customs_stats(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
-    return _fetch_industry_source("customs-stats", context)
+    items = _fetch_industry_source("customs-stats", context)
+    if items:
+        return items
+    return _fetch_customs_search_fallback(context)
 
 
 def fetch_cpia_news(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
