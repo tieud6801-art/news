@@ -21,6 +21,10 @@ from trendradar.core import load_config
 from trendradar.core.analyzer import convert_keyword_stats_to_platform_stats, convert_rss_keyword_to_feed_stats
 from trendradar.crawler import DataFetcher
 from trendradar.crawler.sources.base import SourceCrawlContext
+from trendradar.exports.incremental import (
+    build_incremental_payload,
+    write_incremental_package,
+)
 from trendradar.storage import convert_crawl_results_to_news_data
 from trendradar.utils.time import DEFAULT_TIMEZONE, is_within_days, calculate_days_old
 from trendradar.utils.url import normalize_url
@@ -235,6 +239,7 @@ class NewsAnalyzer:
             proxy_url=self.proxy_url,
             default_fetch_mode=self.fetch_mode,
         )
+        self._latest_rss_failed_ids: List[str] = []
 
         # 初始化存储管理器（使用 AppContext）
         self._init_storage_manager()
@@ -1182,6 +1187,7 @@ class NewsAnalyzer:
 
             # 抓取数据
             rss_data = fetcher.fetch_all()
+            self._latest_rss_failed_ids = list(rss_data.failed_ids)
 
             # 保存到存储后端
             if self.storage_manager.save_rss_data(rss_data):
@@ -1769,18 +1775,80 @@ class NewsAnalyzer:
 
         return html_file
 
+    def _export_incremental_package(
+        self,
+        before_news,
+        before_rss,
+        failed_news_ids: List[str],
+    ) -> Optional[str]:
+        """Write this run's newly added records for the SFTP workflow step."""
+        export_path = os.environ.get("INCREMENTAL_EXPORT_PATH", "").strip()
+        if not export_path:
+            return None
+
+        try:
+            crawl_date = self.ctx.format_date()
+            after_news = self.storage_manager.get_today_all_data(crawl_date)
+            after_rss = (
+                self.storage_manager.get_rss_data(crawl_date)
+                if self.ctx.rss_enabled
+                else None
+            )
+            payload = build_incremental_payload(
+                before_news=before_news,
+                after_news=after_news,
+                before_rss=before_rss,
+                after_rss=after_rss,
+                generated_at=self.ctx.get_time().isoformat(),
+                batch_metadata={
+                    "repository": os.environ.get("GITHUB_REPOSITORY", ""),
+                    "ref": os.environ.get("GITHUB_REF_NAME", ""),
+                    "commit_sha": os.environ.get("GITHUB_SHA", ""),
+                    "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+                    "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+                },
+                failed_news_ids=failed_news_ids,
+                failed_rss_ids=self._latest_rss_failed_ids,
+            )
+            package_path = write_incremental_package(Path(export_path), payload)
+            counts = payload["counts"]
+            print(
+                "[增量导出] 已生成 "
+                f"{package_path}（新闻 {counts['news']} 条，RSS {counts['rss']} 条）"
+            )
+            return str(package_path)
+        except Exception as error:
+            print(f"[增量导出] 生成失败: {error}")
+            return None
+
     def run(self) -> None:
         """执行分析流程"""
         try:
             self._initialize_and_check_config()
 
             mode_strategy = self._get_mode_strategy()
+            export_enabled = bool(os.environ.get("INCREMENTAL_EXPORT_PATH", "").strip())
+            if export_enabled:
+                crawl_date = self.ctx.format_date()
+                before_news = self.storage_manager.get_today_all_data(crawl_date)
+                before_rss = (
+                    self.storage_manager.get_rss_data(crawl_date)
+                    if self.ctx.rss_enabled
+                    else None
+                )
+            else:
+                before_news = None
+                before_rss = None
 
             # 抓取热榜数据
             results, id_to_name, failed_ids = self._crawl_data()
 
             # 抓取 RSS 数据（如果启用），返回统计条目、新增条目和原始条目
             rss_items, rss_new_items, raw_rss_items = self._crawl_rss_data()
+
+            # 导出的文件仅包含本轮新增，展示模式仍然可以读取全天全量数据。
+            if export_enabled:
+                self._export_incremental_package(before_news, before_rss, failed_ids)
 
             # 执行模式策略，传递 RSS 数据用于合并推送
             self._execute_mode_strategy(

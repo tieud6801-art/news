@@ -26,6 +26,8 @@ jobs:
   crawl:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      sftp_enabled: ${{ steps.sftp_config.outputs.enabled }}
 
     steps:
       - name: Checkout repository
@@ -34,6 +36,17 @@ jobs:
           fetch-depth: 1
           clean: true
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Detect SFTP configuration
+        id: sftp_config
+        env:
+          NEWS_SFTP_HOST: ${{ secrets.NEWS_SFTP_HOST }}
+        run: |
+          if [ -n "$NEWS_SFTP_HOST" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
 
       # --------------------------------------------------------------------------------
       # 🚦 TRAFFIC CONTROL / 流量控制
@@ -106,8 +119,20 @@ jobs:
           S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
           S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
           S3_REGION: ${{ secrets.S3_REGION }}
+          # 本轮增量文件仅用于后续 SFTP 上传，不会提交到仓库
+          INCREMENTAL_EXPORT_PATH: ${{ steps.sftp_config.outputs.enabled == 'true' && '/tmp/trendradar-incremental.json.gz' || '' }}
           GITHUB_ACTIONS: true
         run: python -m trendradar
+
+      - name: Preserve incremental package
+        if: steps.sftp_config.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-incremental-${{ github.run_id }}
+          path: /tmp/trendradar-incremental.json.gz
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
 
       - name: Commit and push if changes
         if: success()
@@ -140,3 +165,30 @@ jobs:
 
           echo "❌ Failed to push after 5 attempts"
           exit 1
+
+  deliver:
+    name: Deliver incremental package
+    needs: crawl
+    if: needs.crawl.outputs.sftp_enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout uploader
+        uses: actions/checkout@v4
+
+      - name: Download incremental package
+        uses: actions/download-artifact@v4
+        with:
+          name: news-incremental-${{ github.run_id }}
+          path: /tmp/news-incremental
+
+      - name: Upload incremental package to SFTP
+        env:
+          NEWS_SFTP_HOST: ${{ secrets.NEWS_SFTP_HOST }}
+          NEWS_SFTP_PORT: ${{ secrets.NEWS_SFTP_PORT }}
+          NEWS_SFTP_USER: ${{ secrets.NEWS_SFTP_USER }}
+          NEWS_SFTP_PRIVATE_KEY: ${{ secrets.NEWS_SFTP_PRIVATE_KEY }}
+          NEWS_SFTP_KNOWN_HOSTS: ${{ secrets.NEWS_SFTP_KNOWN_HOSTS }}
+          NEWS_SFTP_REMOTE_DIR: ${{ secrets.NEWS_SFTP_REMOTE_DIR }}
+        run: bash scripts/upload_incremental_sftp.sh /tmp/news-incremental/trendradar-incremental.json.gz

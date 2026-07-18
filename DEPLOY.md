@@ -113,8 +113,56 @@ IMMEDIATE_RUN=true             # 启动时立即执行首次抓取
 | `S3_ACCESS_KEY_ID` | 空 | Access Key |
 | `S3_SECRET_ACCESS_KEY` | 空 | Secret Key |
 | `S3_REGION` | 空 | 区域 |
+| **增量文件 SFTP（仅 GitHub Actions）** | | |
+| `NEWS_SFTP_HOST` | 空 | 接收服务器域名或 IP；留空时不上传 |
+| `NEWS_SFTP_PORT` | `22` | SFTP/SSH 端口 |
+| `NEWS_SFTP_USER` | 空 | 仅允许上传的专用用户 |
+| `NEWS_SFTP_PRIVATE_KEY` | 空 | 专用用户的无密码 SSH 私钥全文 |
+| `NEWS_SFTP_KNOWN_HOSTS` | 空 | 服务器主机公钥记录，用于防止中间人攻击 |
+| `NEWS_SFTP_REMOTE_DIR` | `incoming/news` | 已在服务器创建好的接收目录（相对 SFTP 登录目录） |
 
 </details>
+
+### GitHub Actions 增量文件上传
+
+此功能不会把爬虫部署到服务器。GitHub Actions 仍负责抓取和生成网页，服务器只通过现有 OpenSSH/SFTP 接收每轮新增数据文件。
+
+1. 在服务器创建专用用户和接收目录：
+
+```bash
+sudo useradd --create-home --shell /usr/sbin/nologin news-upload
+sudo install -d -m 700 -o news-upload -g news-upload /home/news-upload/.ssh
+sudo install -d -m 750 -o news-upload -g news-upload /home/news-upload/incoming/news
+```
+
+2. 为该用户配置一把单独的 SSH 公钥，并在 `sshd_config` 末尾限制为 SFTP：
+
+```text
+Match User news-upload
+    ForceCommand internal-sftp
+    PasswordAuthentication no
+    AllowTcpForwarding no
+    X11Forwarding no
+```
+
+修改后先执行 `sudo sshd -t`，确认配置有效，再重载 SSH 服务。不要复用服务器管理员私钥。
+
+3. 在可信环境获取服务器主机记录，并核对指纹后，将整行保存为 `NEWS_SFTP_KNOWN_HOSTS`：
+
+```bash
+ssh-keyscan -p 22 your-server.example.com
+```
+
+4. 在仓库的 GitHub Actions Secrets 中至少配置 `HOST`、`USER`、`PRIVATE_KEY` 和 `KNOWN_HOSTS`；端口和目录留空时使用默认值。配置完成后，工作流会上传：
+
+```text
+news-incremental-20260718T102100+0800-run123456-attempt1.json.gz
+news-incremental-20260718T102100+0800-run123456-attempt1.json.gz.sha256
+```
+
+压缩包包含本轮新入库的热榜/网页新闻和 RSS 新闻。即使本轮新增为 0，也会上传一个有效批次文件作为执行记录。上传期间使用隐藏的 `.part` 文件，数据文件完成原子改名后才写入 `.sha256` 完成标记；消费程序应只处理同时存在校验文件的批次。
+
+每个增量包还会作为 GitHub Actions Artifact 保留 7 天。SFTP 暂时不可用不会阻止新闻数据库和网站提交；恢复后在原工作流中只重跑失败的 `Deliver incremental package` 任务，即可发送原始批次，无需重新爬取。
 
 ### 功能配置（config.yaml）
 
