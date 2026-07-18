@@ -126,11 +126,11 @@ platforms:
       source_url: "https://www.ndrc.gov.cn/xwdt/xwfb/"
       hotlist: false
     - id: "nfra-gfxwj"
-      name: "金融监管总局政策规章"
+      name: "国家金融监督管理总局（原银保监会）政策规章"
       source_url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemId=928"
       hotlist: false
     - id: "nfra-jgdt"
-      name: "金融监管总局监管动态"
+      name: "国家金融监督管理总局（原银保监会）监管动态"
       source_url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemId=915"
       hotlist: false
     - id: "cac-zcfg"
