@@ -103,6 +103,26 @@ class AppContext:
         return [p["id"] for p in self.platforms]
 
     @property
+    def source_urls(self) -> Dict[str, str]:
+        """获取用于报告标题跳转的原始来源地址，按 ID 和显示名索引。"""
+        source_urls: Dict[str, str] = {}
+        for source in self.platforms:
+            url = str(source.get("source_url", "")).strip()
+            if not url:
+                continue
+            source_urls[source.get("id", "")] = url
+            source_urls[source.get("name", source.get("id", ""))] = url
+        for feed in self.rss_feeds:
+            if not feed.get("enabled", True):
+                continue
+            url = str(feed.get("url", "")).strip()
+            if not url:
+                continue
+            source_urls[feed.get("id", "")] = url
+            source_urls[feed.get("name", feed.get("id", ""))] = url
+        return {key: value for key, value in source_urls.items() if key}
+
+    @property
     def hotlist_source_ids(self) -> List[str]:
         """获取参与热榜统计的平台ID列表。"""
         return [p["id"] for p in self.platforms if p.get("hotlist", True)]
@@ -368,7 +388,7 @@ class AppContext:
     ) -> str:
         """渲染HTML内容"""
         render_func = render_newsnow_html_content if self.html_style == "newsnow" else render_html_content
-        return render_func(
+        render_kwargs = dict(
             report_data=report_data,
             total_titles=total_titles,
             mode=mode,
@@ -383,6 +403,9 @@ class AppContext:
             show_rss_new_items=self.show_rss_new_items,
             standalone_data=standalone_data,
         )
+        if self.html_style == "newsnow":
+            render_kwargs["source_urls"] = self.source_urls
+        return render_func(**render_kwargs)
 
     # === 通知内容渲染 ===
 

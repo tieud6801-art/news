@@ -691,8 +691,18 @@ class NewsAnalyzer:
             for platform in self.ctx.platforms
             if platform.get("id")
         }
+        platform_source_url_map = {
+            platform.get("id", ""): platform.get("source_url", "")
+            for platform in self.ctx.platforms
+            if platform.get("id")
+        }
         feed_name_map = {
             feed.get("id", ""): feed.get("name", feed.get("id", ""))
+            for feed in self.ctx.rss_feeds
+            if feed.get("id") and feed.get("enabled", True)
+        }
+        feed_url_map = {
+            feed.get("id", ""): feed.get("url", "")
             for feed in self.ctx.rss_feeds
             if feed.get("id") and feed.get("enabled", True)
         }
@@ -765,6 +775,7 @@ class NewsAnalyzer:
             standalone_data["platforms"].append({
                 "id": platform_id,
                 "name": platform_name,
+                "source_url": platform_source_url_map.get(platform_id, ""),
                 "total_count": total_count,
                 "items": items,
             })
@@ -801,6 +812,7 @@ class NewsAnalyzer:
                 standalone_data["rss_feeds"].append({
                     "id": feed_id,
                     "name": feed_data["name"],
+                    "source_url": feed_url_map.get(feed_id, ""),
                     "total_count": total_count,
                     "items": items,
                 })

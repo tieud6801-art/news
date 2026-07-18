@@ -190,6 +190,7 @@ def _card(
     items_html: str,
     color: str,
     displayed_count: Optional[int] = None,
+    source_url: str = "",
 ) -> str:
     shell_bg = _to_rgba(color, 0.40)
     sprinkle = (
@@ -199,6 +200,14 @@ def _card(
     displayed_count = count if displayed_count is None else displayed_count
     sub_text = f"显示 {displayed_count} 条" if 0 <= displayed_count < count else ""
     sub_html = f'<span class="card-sub">{sub_text}</span>' if sub_text else ""
+    if source_url:
+        name_html = (
+            f'<a href="{html_escape(source_url)}" target="_blank" rel="noopener noreferrer" '
+            f'class="card-name source-link" title="打开原始来源：{html_escape(label)}">'
+            f'{html_escape(label)}</a>'
+        )
+    else:
+        name_html = f'<span class="card-name">{html_escape(label)}</span>'
     delay = (idx - 1) * 0.08 if idx > 0 else 0
     return (
         f'<section class="card-shell" '
@@ -206,7 +215,7 @@ def _card(
         f'<div class="card-head">'
         f'<div class="card-head-left">'
         f'<span class="card-name-wrap">'
-        f'<span class="card-name">{html_escape(label)}</span>'
+        f'{name_html}'
         f'{sub_html}'
         f'</span></div>'
         f'<span class="card-count">共 {count} 条</span>'
@@ -217,7 +226,11 @@ def _card(
     )
 
 
-def _cards_grid(stats: List[Dict], display_mode: str) -> str:
+def _cards_grid(
+    stats: List[Dict],
+    display_mode: str,
+    source_urls: Optional[Dict[str, str]] = None,
+) -> str:
     if not stats:
         return ""
     total = len(stats)
@@ -227,16 +240,24 @@ def _cards_grid(stats: List[Dict], display_mode: str) -> str:
         titles = stat.get("titles", [])
         count = stat.get("total_count", stat.get("count", len(titles)))
         displayed_count = len(titles)
+        source_url = stat.get("source_url") or (source_urls or {}).get(label, "")
+        if not source_url and titles:
+            source_url = titles[0].get("mobile_url") or titles[0].get("url", "")
         color = _get_platform_color(label)
         items_html = "".join(
             _news_row(td, i, display_mode)
             for i, td in enumerate(titles, 1)
         )
-        cards.append(_card(label, count, idx, total, items_html, color, displayed_count))
+        cards.append(
+            _card(label, count, idx, total, items_html, color, displayed_count, source_url)
+        )
     return f'<div class="cards-grid">{"".join(cards)}</div>'
 
 
-def _render_new_section(new_titles: List[Dict]) -> str:
+def _render_new_section(
+    new_titles: List[Dict],
+    source_urls: Optional[Dict[str, str]] = None,
+) -> str:
     if not new_titles:
         return ""
     source_cards = []
@@ -251,7 +272,12 @@ def _render_new_section(new_titles: List[Dict]) -> str:
             f'</a>'
             for i, td in enumerate(titles, 1)
         )
-        source_cards.append(_card(sn, len(titles), idx, len(new_titles), items, color, len(titles)))
+        source_url = source_data.get("source_url") or (source_urls or {}).get(sn, "")
+        if not source_url and titles:
+            source_url = titles[0].get("mobile_url") or titles[0].get("url", "")
+        source_cards.append(
+            _card(sn, len(titles), idx, len(new_titles), items, color, len(titles), source_url)
+        )
     return (
         '<section class="panel-block">'
         '<h2 class="panel-title">🆕 本次新增热点</h2>'
@@ -260,7 +286,12 @@ def _render_new_section(new_titles: List[Dict]) -> str:
     )
 
 
-def _render_rss(rss_stats: List[Dict], title: str, display_mode: str) -> str:
+def _render_rss(
+    rss_stats: List[Dict],
+    title: str,
+    display_mode: str,
+    source_urls: Optional[Dict[str, str]] = None,
+) -> str:
     if not rss_stats:
         return ""
     cards = []
@@ -273,7 +304,12 @@ def _render_rss(rss_stats: List[Dict], title: str, display_mode: str) -> str:
             _news_row(td, i, display_mode)
             for i, td in enumerate(titles, 1)
         )
-        cards.append(_card(label, count, idx, total, items_html, "#10b981", len(titles)))
+        source_url = group.get("source_url") or (source_urls or {}).get(label, "")
+        if not source_url and titles:
+            source_url = titles[0].get("url", "")
+        cards.append(
+            _card(label, count, idx, total, items_html, "#10b981", len(titles), source_url)
+        )
     return (
         '<section class="panel-block">'
         f'<h2 class="panel-title">📰 {html_escape(title)}</h2>'
@@ -297,6 +333,7 @@ def render_newsnow_html_content(
     rss_new_items: Optional[List[Dict]] = None,
     display_mode: str = "keyword",
     standalone_data: Optional[Dict] = None,
+    source_urls: Optional[Dict[str, str]] = None,
     ai_analysis: Optional[Any] = None,
     show_new_section: bool = True,
     show_rss_new_items: bool = True,
@@ -348,21 +385,21 @@ def render_newsnow_html_content(
     sections["hotlist"] = (
         f'<section class="panel-block">'
         f'<h2 class="panel-title">🔥 热点新闻</h2>'
-        f'{_cards_grid(stats, display_mode)}'
+        f'{_cards_grid(stats, display_mode, source_urls)}'
         f'</section>'
     ) if stats else ""
 
     rss_section = ""
     if rss_items:
         rss_title = "RSS 订阅统计" if display_mode == "keyword" else "RSS 订阅更新"
-        rss_section += _render_rss(rss_items, rss_title, display_mode)
+        rss_section += _render_rss(rss_items, rss_title, display_mode, source_urls)
     if rss_new_items and show_rss_new_items:
-        rss_section += _render_rss(rss_new_items, "RSS 新增更新", display_mode)
+        rss_section += _render_rss(rss_new_items, "RSS 新增更新", display_mode, source_urls)
     sections["rss"] = rss_section
 
     new_titles_html = ""
     if show_new_section and report_data.get("new_titles"):
-        new_titles_html = _render_new_section(report_data["new_titles"])
+        new_titles_html = _render_new_section(report_data["new_titles"], source_urls)
     sections["new_items"] = new_titles_html
 
     if standalone_data:
@@ -394,6 +431,7 @@ def render_newsnow_html_content(
             for platform in standalone_platforms:
                 converted_stats.append({
                     "word": platform.get("name", platform.get("id", "未命名")),
+                    "source_url": platform.get("source_url", ""),
                     "count": platform.get("total_count", len(platform.get("items", []))),
                     "titles": [
                         {
@@ -412,6 +450,7 @@ def render_newsnow_html_content(
             for feed in standalone_rss_feeds:
                 converted_stats.append({
                     "word": feed.get("name", feed.get("id", "RSS")),
+                    "source_url": feed.get("source_url", ""),
                     "count": feed.get("total_count", len(feed.get("items", []))),
                     "titles": [
                         {
@@ -429,7 +468,7 @@ def render_newsnow_html_content(
             sections["standalone"] = (
                 f'<section class="panel-block">'
                 f'<h2 class="panel-title">📌 独立展示区</h2>'
-                f'{_cards_grid(converted_stats, "keyword")}'
+                f'{_cards_grid(converted_stats, "keyword", source_urls)}'
                 f'</section>'
             )
         else:
@@ -620,6 +659,12 @@ ol,ul{{ list-style:none; }}
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}}
+.source-link{{ cursor: pointer; }}
+.source-link:hover{{
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }}
 .card-sub{{
   font-size: 12px;
