@@ -65,6 +65,18 @@ _NFRA_ITEMS = {
     "nfra-gfxwj": 928,
     "nfra-jgdt": 915,
 }
+NFRA_ITEM_LIST_URLS = {
+    "nfra-gfxwj": (
+        "https://www.nfra.gov.cn/cn/view/pages/ItemList.html"
+        "?itemPId=926&itemId=928&itemUrl=ItemListRightList.html"
+        "&itemName=%E6%94%BF%E7%AD%96%E8%A7%84%E7%AB%A0%E8%A7%84%E8%8C%83%E6%80%A7%E6%96%87%E4%BB%B6"
+    ),
+    "nfra-jgdt": (
+        "https://www.nfra.gov.cn/cn/view/pages/ItemList.html"
+        "?itemPId=914&itemId=915&itemUrl=ItemListRightList.html"
+        "&itemName=%E7%9B%91%E7%AE%A1%E5%8A%A8%E6%80%81"
+    ),
+}
 
 
 def _default_year() -> int:
@@ -419,7 +431,7 @@ def _fetch_nfra_item(source_id: str, context: Optional[SourceCrawlContext] = Non
     for page_index in range(1, max_pages + 1):
         result = fetch(
             _NFRA_DOC_API,
-            headers={"Referer": f"https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemId={item_id}"},
+            headers={"Referer": NFRA_ITEM_LIST_URLS[source_id]},
             params={
                 "itemId": item_id,
                 "pageIndex": page_index,

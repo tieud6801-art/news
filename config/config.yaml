@@ -126,12 +126,12 @@ platforms:
       source_url: "https://www.ndrc.gov.cn/xwdt/xwfb/"
       hotlist: false
     - id: "nfra-gfxwj"
-      name: "国家金融监督管理总局（原银保监会）政策规章"
-      source_url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemId=928"
+      name: "国家金融监督管理总局政策规章"
+      source_url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemPId=926&itemId=928&itemUrl=ItemListRightList.html&itemName=%E6%94%BF%E7%AD%96%E8%A7%84%E7%AB%A0%E8%A7%84%E8%8C%83%E6%80%A7%E6%96%87%E4%BB%B6"
       hotlist: false
     - id: "nfra-jgdt"
-      name: "国家金融监督管理总局（原银保监会）监管动态"
-      source_url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemId=915"
+      name: "国家金融监督管理总局监管动态"
+      source_url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemPId=914&itemId=915&itemUrl=ItemListRightList.html&itemName=%E7%9B%91%E7%AE%A1%E5%8A%A8%E6%80%81"
       hotlist: false
     - id: "cac-zcfg"
       name: "中央网信办政策法规"

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from trendradar.crawler.sources.china_policy import NFRA_ITEM_LIST_URLS
 from trendradar.report.html_newsnow import render_newsnow_html_content
 
 
@@ -15,6 +16,15 @@ class SourceAuditLinkTests(unittest.TestCase):
         for source in config["platforms"]["sources"]:
             with self.subTest(source_id=source["id"]):
                 self.assertRegex(source.get("source_url", ""), r"^https?://")
+
+    def test_nfra_source_links_include_required_frontend_route(self):
+        config = yaml.safe_load(Path("config/config.yaml").read_text(encoding="utf-8"))
+        sources = {source["id"]: source for source in config["platforms"]["sources"]}
+
+        for source_id, expected_url in NFRA_ITEM_LIST_URLS.items():
+            with self.subTest(source_id=source_id):
+                self.assertEqual(sources[source_id]["source_url"], expected_url)
+                self.assertNotIn("原银保监会", sources[source_id]["name"])
 
     def test_zero_item_card_title_links_to_configured_source(self):
         source_url = "https://example.com/original-list"
