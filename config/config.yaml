@@ -112,6 +112,9 @@ platforms:
     - id: "nfra-gfxwj"
       name: "金融监管总局政策规章"
       hotlist: false
+    - id: "nfra-jgdt"
+      name: "金融监管总局监管动态"
+      hotlist: false
     - id: "cac-zcfg"
       name: "中央网信办政策法规"
       hotlist: false
@@ -180,6 +183,9 @@ platforms:
       hotlist: false
     - id: "sac-news"
       name: "中国证券业协会"
+      hotlist: false
+    - id: "cfa-announcement"
+      name: "中国期货业协会公告"
       hotlist: false
     - id: "crea-news"
       name: "中国房地产业协会"

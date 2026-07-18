@@ -61,6 +61,10 @@ _CHINATAX_LATEST_API = "https://www.chinatax.gov.cn/getFileListByCodeId"
 _CSRC_NEWS_API = "https://www.csrc.gov.cn/searchList/a1a078ee0bc54721ab6b148884c784a8"
 _NFRA_DOC_API = "https://www.nfra.gov.cn/cbircweb/DocInfo/SelectDocByItemIdAndChild"
 _NFRA_DETAIL_URL = "https://www.nfra.gov.cn/cn/view/pages/ItemDetail.html"
+_NFRA_ITEMS = {
+    "nfra-gfxwj": 928,
+    "nfra-jgdt": 915,
+}
 
 
 def _default_year() -> int:
@@ -406,44 +410,61 @@ def fetch_csrc_news(context: Optional[SourceCrawlContext] = None) -> List[Dict[s
     return news
 
 
-def fetch_nfra_gfxwj(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
-    result = fetch(
-        _NFRA_DOC_API,
-        headers={"Referer": "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemId=928"},
-        params={
-            "itemId": 928,
-            "pageIndex": 1,
-            "pageSize": 18,
-        },
-        response_type="json",
-        timeout=15,
-    )
-    rows = result.get("data", {}).get("rows", [])
-
+def _fetch_nfra_item(source_id: str, context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    item_id = _NFRA_ITEMS[source_id]
+    page_size = 20
+    max_pages = context.max_pages if context else 1
     news: List[Dict[str, Any]] = []
     seen_keys = set()
-    for row in rows:
-        title = str(row.get("docSubtitle") or row.get("docTitle") or "").strip()
-        date_str = _normalize_date(str(row.get("publishDate") or row.get("builddate") or ""))
-        doc_id = str(row.get("docId") or "").strip()
-        if not title or not date_str or not doc_id:
-            continue
-        if context and date_str != context.crawl_date:
-            continue
+    for page_index in range(1, max_pages + 1):
+        result = fetch(
+            _NFRA_DOC_API,
+            headers={"Referer": f"https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemId={item_id}"},
+            params={
+                "itemId": item_id,
+                "pageIndex": page_index,
+                "pageSize": page_size,
+            },
+            response_type="json",
+            timeout=15,
+        )
+        rows = result.get("data", {}).get("rows", [])
+        reached_older_item = False
 
-        if str(row.get("isTitleLink")) == "1" and row.get("titleLink"):
-            url = urljoin("https://www.nfra.gov.cn/", str(row.get("titleLink")))
-        else:
-            generaltype = str(row.get("generaltype") or "0")
-            url = f"{_NFRA_DETAIL_URL}?docId={doc_id}&itemId=928&generaltype={generaltype}"
+        for row in rows:
+            title = str(row.get("docSubtitle") or row.get("docTitle") or "").strip()
+            date_str = _normalize_date(str(row.get("publishDate") or row.get("builddate") or ""))
+            doc_id = str(row.get("docId") or "").strip()
+            if not title or not date_str or not doc_id:
+                continue
+            if context and date_str < context.crawl_date:
+                reached_older_item = True
+                continue
+            if context and date_str != context.crawl_date:
+                continue
 
-        item = _build_item(title, url, date_str)
-        if _should_include(item, item["pubDate"], context, seen_keys):
-            news.append(item)
-        if not context and len(news) >= 50:
+            if str(row.get("isTitleLink")) == "1" and row.get("titleLink"):
+                url = urljoin("https://www.nfra.gov.cn/", str(row.get("titleLink")))
+            else:
+                generaltype = str(row.get("generaltype") or "0")
+                url = f"{_NFRA_DETAIL_URL}?docId={doc_id}&itemId={item_id}&generaltype={generaltype}"
+
+            item = _build_item(title, url, date_str)
+            if _should_include(item, item["pubDate"], context, seen_keys):
+                news.append(item)
+
+        if not context or reached_older_item or len(rows) < page_size:
             break
 
     return news
+
+
+def fetch_nfra_gfxwj(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_nfra_item("nfra-gfxwj", context)
+
+
+def fetch_nfra_jgdt(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    return _fetch_nfra_item("nfra-jgdt", context)
 
 
 def fetch_gov_zhengceku_bmwj(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
@@ -563,6 +584,7 @@ register_sources({
     "safe-zcfgjd": fetch_safe_zcfgjd,
     "csrc-news": fetch_csrc_news,
     "nfra-gfxwj": fetch_nfra_gfxwj,
+    "nfra-jgdt": fetch_nfra_jgdt,
     "nhsa-zcfg": fetch_nhsa_zcfg,
     "nhsa-zcjd": fetch_nhsa_zcjd,
 })

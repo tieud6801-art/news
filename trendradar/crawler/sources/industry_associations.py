@@ -55,6 +55,9 @@ _CUSTOMS_SEARCH_KEYWORDS = (
     "国新办 进出口 情况 海关 新闻发布会",
 )
 _CUSTOMS_PRESS_URL_RE = re.compile(r"/customs/xwfb34/302330/[^/]+/index\.html$")
+_CFA_SEARCH_API_URL = "https://www.cfachina.org/qx-search/api/wcmSearch/searchDocsByProgram"
+_CFA_BASE_URL = "https://www.cfachina.org/"
+_CFA_PROGRAM_NAME = "协会公告"
 
 _SKIP_TITLES = {
     "更多",
@@ -420,6 +423,46 @@ def fetch_sac_news(context: Optional[SourceCrawlContext] = None) -> List[Dict[st
     return _fetch_industry_source("sac-news", context)
 
 
+def fetch_cfa_announcement(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
+    page_size = 50
+    max_pages = context.max_pages if context else 1
+    news: List[Dict[str, Any]] = []
+    seen_keys = set()
+
+    for page_no in range(1, max_pages + 1):
+        response = fetch_raw(
+            f"{_CFA_SEARCH_API_URL}?pageNo={page_no}&pageSize={page_size}"
+            f"&keyword=&programName={_CFA_PROGRAM_NAME}",
+            timeout=18,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        rows = payload.get("data", {}).get("dataList", [])
+        reached_older_item = False
+
+        for row in rows:
+            title = _clean_title(str(row.get("docTitle") or ""))
+            href = str(row.get("docPubUrl") or "").strip()
+            date_str = _normalize_date(str(row.get("docRelTime") or row.get("operTime") or ""), _fallback_year(context))
+            if not title or not href or not date_str:
+                continue
+            if context and date_str < context.crawl_date:
+                reached_older_item = True
+                continue
+            if context and date_str != context.crawl_date:
+                continue
+
+            item = _make_item(title, urljoin(_CFA_BASE_URL, href), date_str)
+            if _should_include(item, context, seen_keys):
+                news.append(item)
+
+        if not context or reached_older_item or len(rows) < page_size:
+            break
+
+    news.sort(key=lambda item: item.get("pubDate", 0), reverse=True)
+    return news
+
+
 def fetch_crea_news(context: Optional[SourceCrawlContext] = None) -> List[Dict[str, Any]]:
     return _fetch_industry_source("crea-news", context)
 
@@ -449,6 +492,7 @@ register_sources({
     "cpia-news": fetch_cpia_news,
     "caam-news": fetch_caam_news,
     "sac-news": fetch_sac_news,
+    "cfa-announcement": fetch_cfa_announcement,
     "crea-news": fetch_crea_news,
     "iachina-news": fetch_iachina_news,
     "ceea-news": fetch_ceea_news,
